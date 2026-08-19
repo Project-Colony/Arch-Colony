@@ -1,0 +1,12 @@
+# Build output
+repo/out/
+*.pkg.tar.zst
+*.pkg.tar.zst.sig
+src/
+pkg/
+
+# Never commit. The revocation certificate is the only way to announce a
+# compromise; it belongs on offline media, not in a public repository.
+repo/colony-revocation.asc
+*.asc
+*secret*

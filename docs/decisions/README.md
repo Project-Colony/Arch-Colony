@@ -13,6 +13,7 @@ lien. L'historique des choix vaut autant que les choix eux-mêmes.
 | [0005](0005-deux-editions.md) | Deux éditions : Hyprland et KDE Plasma | acceptée |
 | [0006](0006-installateur-calamares.md) | Installateur Calamares brandé Colony | acceptée |
 | [0007](0007-configuration-en-paquets.md) | Toute configuration est livrée comme paquet | acceptée |
+| [0008](0008-chaine-de-confiance.md) | Chaîne de confiance et hébergement du dépôt | acceptée |
 
 **0002 contraint tout le reste.** Une proposition qui la viole ne se discute pas au cas par
 cas : soit elle est reformulée, soit elle va dans un dépôt opt-in séparé.

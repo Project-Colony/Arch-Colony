@@ -33,6 +33,34 @@ désactivé par défaut, une fois que le dépôt `[colony]` et sa CI de reconstr
 fonctionnent. L'utilisateur qui l'active accepte explicitement de quitter la garantie de
 non-recouvrement.
 
+## Un seul LSM majeur à la fois
+
+Précision vérifiée le 2026-08-19, qui rend la bascule entre les deux étapes beaucoup moins
+coûteuse qu'il n'y paraît.
+
+Le noyau n'autorise qu'**un seul LSM « majeur »** actif — SELinux *ou* AppArmor, jamais les
+deux. La documentation du noyau est explicite : aux capabilities, toujours présentes,
+s'ajoutent un nombre quelconque de modules mineurs et *au plus un* module majeur. Les
+modules mineurs — Landlock, lockdown, Yama, bpf — s'empilent librement avec celui qu'on
+retient.
+
+Les deux sont **déjà compilés** dans les noyaux d'Arch, `linux` comme `linux-hardened` : il
+n'y a rien à activer côté noyau, seulement à choisir au démarrage. Mesuré sur `linux`
+7.1.8-arch1-3 :
+
+```
+CONFIG_SECURITY_SELINUX=y   CONFIG_SECURITY_APPARMOR=y
+CONFIG_LSM="landlock,lockdown,yama,integrity,bpf"
+```
+
+Noter la dernière ligne : par défaut Arch n'active **aucun** des deux. Une machine Arch
+n'a aujourd'hui aucun contrôle d'accès obligatoire. L'étape 1 ne remplace donc pas SELinux
+par quelque chose de moindre — elle apporte du confinement là où il n'y en a aucun.
+
+**Conséquence sur le plan.** Passer de l'étape 1 à l'étape 2 est un changement de paramètre
+d'amorçage plus un changement de dépôt, pas une réécriture. Le travail réel de l'étape 2
+reste entièrement dans l'espace utilisateur.
+
 ## Conséquences
 
 Le premier ISO amorçable arrive sans attendre la reconstruction de la base. Le durcissement

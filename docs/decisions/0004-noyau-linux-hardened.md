@@ -44,6 +44,21 @@ les sources de configuration d'Arch, pas un raisonnement :
    fait du CO-RE et que BTF est absent, le chargement échoue et cette ADR tombe.
 2. `CONFIG_BPF_SYSCALL`, `CONFIG_CGROUP_BPF`, `CONFIG_BPF_JIT`,
    `CONFIG_NETFILTER_NETLINK_QUEUE`, `CONFIG_NF_TABLES` — présents ?
+
+   **Mesure partielle du 2026-08-19**, relevée dans `/proc/config.gz` sur une machine Arch
+   à jour, noyau `linux` **7.1.8-arch1-3** :
+
+   ```
+   CONFIG_DEBUG_INFO_BTF=y          CONFIG_BPF_SYSCALL=y
+   CONFIG_BPF_JIT=y                 CONFIG_CGROUP_BPF=y
+   CONFIG_NETFILTER_NETLINK_QUEUE=m CONFIG_NF_TABLES=m
+   ```
+
+   Les six options sont présentes, BTF compris. **Cela ne valide pas l'ADR** : la mesure
+   porte sur le paquet `linux`, pas sur `linux-hardened`, qui a sa propre configuration. Le
+   résultat rend l'hypothèse vraisemblable, il ne la démontre pas. La vérification doit être
+   refaite sur un système démarré sous `linux-hardened`.
+
 3. Distinguer trois choses souvent confondues : la restriction eBPF *non privilégié*
    (sans effet sur un démon root doté de `CAP_BPF`), la configuration de compilation, et le
    *lockdown* à l'exécution. Sous Secure Boot, le lockdown s'active automatiquement et peut

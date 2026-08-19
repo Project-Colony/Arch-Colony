@@ -1,0 +1,14 @@
+##
+## Arch Colony repository mirrorlist
+##
+## Add to /etc/pacman.conf, BEFORE [core]:
+##
+##   [colony]
+##   Include = /etc/pacman.d/colony-mirrorlist
+##
+## The position is not there to shadow anything — ADR-0002 forbids [colony] from
+## carrying the name of any package in [core], [extra] or [multilib].
+##
+
+## GitHub Releases
+Server = https://github.com/Project-Colony/Arch-Colony/releases/download/repo
