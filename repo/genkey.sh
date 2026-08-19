@@ -8,7 +8,9 @@
 set -euo pipefail
 
 KEY_UID="Arch Colony Repository <colony@archcolony.org>"
-KEYRING_DIR="$(dirname "$(realpath "$0")")/../packages/colony-keyring"
+ROOT="$(dirname "$(realpath "$0")")/.."
+KEYRING_DIR="$ROOT/packages/colony-keyring"
+REVOCATION="$ROOT/repo/colony-revocation.asc"
 
 if gpg --list-secret-keys "$KEY_UID" &>/dev/null; then
     echo "A secret key for '$KEY_UID' already exists. Refusing to create a second one." >&2
@@ -17,7 +19,9 @@ if gpg --list-secret-keys "$KEY_UID" &>/dev/null; then
 fi
 
 echo "==> Creating the primary certification key (no expiry)"
-gpg --quick-generate-key "$KEY_UID" rsa4096 cert never
+# --batch keeps gpg off /dev/tty for its own prompts; the passphrase still comes
+# from gpg-agent's pinentry, so it is never visible to this script.
+gpg --batch --quick-generate-key "$KEY_UID" rsa4096 cert never
 
 FPR=$(gpg --list-secret-keys --with-colons "$KEY_UID" | awk -F: '/^fpr:/ {print $10; exit}')
 echo "==> Primary key: $FPR"
@@ -26,7 +30,7 @@ echo "==> Primary key: $FPR"
 # key painless: the subkey can be revoked and replaced without users changing the key
 # they trust.
 echo "==> Adding a signing subkey (3 years)"
-gpg --quick-add-key "$FPR" rsa4096 sign 3y
+gpg --batch --quick-add-key "$FPR" rsa4096 sign 3y
 
 echo "==> Exporting the public key into the colony-keyring package"
 mkdir -p "$KEYRING_DIR"
@@ -35,7 +39,10 @@ printf '%s:4:\n' "$FPR" > "$KEYRING_DIR/colony-trusted"
 : > "$KEYRING_DIR/colony-revoked"
 
 echo "==> Generating a revocation certificate"
-gpg --output "$KEYRING_DIR/../../repo/colony-revocation.asc" --gen-revoke "$FPR" || true
+# --gen-revoke is a prompt sequence, not a flag-driven command: confirm, reason
+# code 0 (unspecified), empty description terminated by a blank line, confirm.
+# Fed on fd 0 so the passphrase still comes from pinentry rather than from here.
+printf 'y\n0\n\ny\n' | gpg --no-tty --command-fd 0 --yes --output "$REVOCATION" --gen-revoke "$FPR"
 
 cat <<EOF
 

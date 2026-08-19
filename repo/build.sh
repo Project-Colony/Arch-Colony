@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-ROOT="$(dirname "$(realpath "$0")")/.."
+ROOT="$(realpath "$(dirname "$(realpath "$0")")/..")"
 OUT="$ROOT/repo/out"
 
 : "${COLONY_SIGNING_KEY:?not set — run repo/genkey.sh first, then export it}"
@@ -47,4 +47,7 @@ done
 
 echo
 echo "Built into $OUT:"
-ls -1 "$OUT"/*.pkg.tar.zst 2>/dev/null | xargs -r -n1 basename
+# Not `ls | xargs basename` — the repository path contains a space.
+for f in "$OUT"/*.pkg.tar.zst; do
+	[[ -e $f ]] && basename "$f"
+done

@@ -1,0 +1,16 @@
+pkgbase = colony-keyring
+	pkgdesc = Arch Colony PGP keyring
+	pkgver = 20260819
+	pkgrel = 1
+	url = https://github.com/Project-Colony/Arch-Colony
+	install = colony-keyring.install
+	arch = any
+	license = GPL-3.0-or-later
+	source = colony.gpg
+	source = colony-trusted
+	source = colony-revoked
+	sha256sums = SKIP
+	sha256sums = SKIP
+	sha256sums = SKIP
+
+pkgname = colony-keyring
