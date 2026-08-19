@@ -34,6 +34,18 @@ fonctionnalité système touchant la session doit être validée deux fois.
 [ADR-0007](0007-configuration-en-paquets.md). Le dépôt d'origine reste utilisable hors
 d'Arch Colony ; seul l'empaquetage change.
 
+## Point ouvert — Colony Shell
+
+L'organisation Project-Colony conserve `noctalia-shell-archive` (« base du futur Colony
+Shell ») et `noctalia-qs-archive`, son fork de Quickshell. Si un Colony Shell voit le jour
+sur cette base, l'édition Hyprland devrait le viser plutôt qu'un assemblage
+waybar/rofi qui serait remplacé ensuite.
+
+Décision reportée au 2026-08-19 : trop tôt, Colony Shell n'a pas encore de forme. La
+conséquence sur J3 est de **structurer sans enfermer** — la configuration de session reste
+un paquet séparable de `colony-desktop-hyprland`, pour que remplacer la barre et le
+lanceur ne demande pas de défaire le reste de l'édition.
+
 ## Alternatives écartées
 
 - **Hyprland seul** — l'option la plus économique, écartée parce qu'elle réduit la
