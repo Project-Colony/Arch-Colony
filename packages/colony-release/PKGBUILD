@@ -5,6 +5,20 @@
 # consumers read /etc first and fall back to /usr/lib, so this takes precedence
 # without replacing anything.
 #
+# CAVEAT, and it is not a package conflict but a FILE conflict. On any running systemd
+# machine /etc/os-release already exists as a symlink into /usr/lib, created by
+# /usr/lib/tmpfiles.d/etc.conf and owned by no package. pacman refuses to overwrite an
+# unowned file, and that check runs before extraction and before any scriptlet, so no
+# .install can rescue it — the whole transaction fails, not just this package.
+#
+# Fresh roots (the ISO, tools/test-repo.sh) never hit this, which is why it went
+# unnoticed. Converting an existing Arch install to Arch Colony therefore requires:
+#
+#     pacman -S --overwrite '/etc/os-release' colony-release
+#
+# What `pacman -Qo /etc/os-release` establishes is the absence of a package conflict,
+# not the absence of a file conflict. Those are different things.
+#
 # ANSI_COLOR is 38;2;255;210;62, i.e. #ffd23e, the accent of the stellar_blade/lily
 # variant in Project-Colony-Resources. It is transcribed here rather than generated;
 # turning it into a colony-tokens target is J3 work (principe 4).

@@ -10,7 +10,7 @@
 
 pkgname=calamares
 pkgver=3.4.2
-pkgrel=1
+pkgrel=2
 pkgdesc='Distribution-independent installer framework'
 arch=('x86_64')
 url='https://codeberg.org/Calamares/calamares'
@@ -22,6 +22,15 @@ depends=(
 	'qt6-declarative'
 	'qt6-svg'
 	'yaml-cpp'
+	# libcalamares.so links against libpython (readelf: NEEDED libpython3.14.so.1.0)
+	# and nine of the fifteen exec modules are main.py. None of the six deps above
+	# pulls python — verified with pactree. Without this, `pacman -S calamares` from
+	# [colony] installs a binary that dies on "error while loading shared libraries".
+	# It only worked on the ISO by accident, because archinstall and reflector happen
+	# to pull python in.
+	'python'
+	# the package installs into usr/share/icons/hicolor/
+	'hicolor-icon-theme'
 )
 makedepends=(
 	'cmake'

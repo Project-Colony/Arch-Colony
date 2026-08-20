@@ -40,7 +40,7 @@ for p in "${pkgs[@]}"; do
 
 	# Debug packages belong in a separate repository, not in the one every user
 	# installs from. Drop them rather than shipping symbols to everyone.
-	local keep=()
+	keep=()
 	for f in "${built[@]}"; do
 		case $(basename "$f") in
 			*-debug-*) rm -f "$f" ;;

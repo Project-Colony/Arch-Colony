@@ -1,7 +1,7 @@
 pkgbase = calamares
 	pkgdesc = Distribution-independent installer framework
 	pkgver = 3.4.2
-	pkgrel = 1
+	pkgrel = 2
 	url = https://codeberg.org/Calamares/calamares
 	arch = x86_64
 	license = GPL-3.0-or-later
@@ -17,6 +17,8 @@ pkgbase = calamares
 	depends = qt6-declarative
 	depends = qt6-svg
 	depends = yaml-cpp
+	depends = python
+	depends = hicolor-icon-theme
 	source = calamares-3.4.2.tar.gz::https://codeberg.org/Calamares/calamares/releases/download/v3.4.2/calamares-3.4.2.tar.gz
 	sha256sums = 733bbbb00dc9f84874bd5c22960952f317ea2537565431179fa2152b2fbfdccc
 

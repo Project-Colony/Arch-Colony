@@ -10,8 +10,28 @@ set -euo pipefail
 ROOT="$(dirname "$(realpath "$0")")/.."
 
 echo "==> reading upstream package names"
-mapfile -t upstream < <(pacman -Sl core extra multilib 2>/dev/null | awk '{print $2}')
-(( ${#upstream[@]} )) || { echo "no upstream package list — run pacman -Sy first" >&2; exit 1; }
+# One repository at a time, and never swallowing stderr. `pacman -Sl core extra
+# multilib` still prints core and extra on stdout when multilib is missing, and exits
+# non-zero — but bash does not inspect the status of a process substitution and
+# pipefail does not reach into one. The guard below would pass, the script would
+# announce "clean", and a package named lib32-glibc or steam would sail through
+# ADR-0002. A check that reports clean on a violation is worse than no check.
+upstream=()
+for r in core extra multilib; do
+	# The status is captured from pacman itself, in its own assignment. Piping into
+	# a process substitution would hide it: mapfile succeeds even when it reads
+	# nothing, so `mapfile < <(pacman ...) || fail` never fires — bash does not
+	# inspect a process substitution's status and pipefail does not reach into one.
+	if ! listing=$(pacman -Sl "$r" 2>&1); then
+		echo "cannot list repository '$r':" >&2
+		printf '  %s\n' "$listing" >&2
+		echo "Is it enabled in pacman.conf, and has 'pacman -Sy' run?" >&2
+		exit 1
+	fi
+	mapfile -t names < <(printf '%s\n' "$listing" | awk '{print $2}')
+	(( ${#names[@]} )) || { echo "repository '$r' returned no packages" >&2; exit 1; }
+	upstream+=("${names[@]}")
+done
 
 declare -A is_upstream=()
 for name in "${upstream[@]}"; do is_upstream["$name"]=1; done
