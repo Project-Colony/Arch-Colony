@@ -1,0 +1,109 @@
+diff --git a/src/modules/netinstall/NetInstallPage.cpp b/src/modules/netinstall/NetInstallPage.cpp
+index 9c70e97..952088c 100644
+--- a/src/modules/netinstall/NetInstallPage.cpp
++++ b/src/modules/netinstall/NetInstallPage.cpp
+@@ -24,6 +24,7 @@
+ #include "utils/Yaml.h"
+ 
+ #include <QHeaderView>
++#include <QLineEdit>
+ #include <QNetworkReply>
+ 
+ NetInstallPage::NetInstallPage( Config* c, QWidget* parent )
+@@ -33,7 +34,20 @@ NetInstallPage::NetInstallPage( Config* c, QWidget* parent )
+ {
+     ui->setupUi( this );
+     ui->groupswidget->header()->setSectionResizeMode( QHeaderView::ResizeToContents );
+-    ui->groupswidget->setModel( c->model() );
++
++    // A distribution may put its whole repository in here -- Arch alone is over
++    // 15000 packages -- and a tree that large cannot be navigated by scrolling.
++    // Filtering is recursive so that a group survives when a package inside it
++    // matches, and searches every column so a description matches too.
++    m_filterModel = new QSortFilterProxyModel( this );
++    m_filterModel->setSourceModel( c->model() );
++    m_filterModel->setRecursiveFilteringEnabled( true );
++    m_filterModel->setFilterCaseSensitivity( Qt::CaseInsensitive );
++    m_filterModel->setFilterKeyColumn( -1 );
++    ui->groupswidget->setModel( m_filterModel );
++
++    ui->searchbox->setPlaceholderText( tr( "Search packages" ) );
++    connect( ui->searchbox, &QLineEdit::textChanged, this, &NetInstallPage::setFilter );
+     connect( c, &Config::statusChanged, ui->netinst_status, &QLabel::setText );
+     connect( c,
+              &Config::titleLabelChanged,
+@@ -57,11 +71,26 @@ NetInstallPage::expandGroups()
+         auto index = model->index( i, 0 );
+         if ( model->data( index, PackageModel::MetaExpandRole ).toBool() )
+         {
+-            ui->groupswidget->setExpanded( index, true );
++            ui->groupswidget->setExpanded( m_filterModel->mapFromSource( index ), true );
+         }
+     }
+ }
+ 
++void
++NetInstallPage::setFilter( const QString& text )
++{
++    m_filterModel->setFilterFixedString( text );
++    if ( text.isEmpty() )
++    {
++        ui->groupswidget->collapseAll();
++        expandGroups();
++    }
++    else
++    {
++        ui->groupswidget->expandAll();
++    }
++}
++
+ void
+ NetInstallPage::onActivate()
+ {
+diff --git a/src/modules/netinstall/NetInstallPage.h b/src/modules/netinstall/NetInstallPage.h
+index 5b10b5c..f2ac324 100644
+--- a/src/modules/netinstall/NetInstallPage.h
++++ b/src/modules/netinstall/NetInstallPage.h
+@@ -19,6 +19,7 @@
+ 
+ #include "locale/TranslatableConfiguration.h"
+ 
++#include <QSortFilterProxyModel>
+ #include <QString>
+ #include <QWidget>
+ 
+@@ -48,7 +49,16 @@ public:
+     void expandGroups();
+ 
+ private:
++    /** @brief Apply the search box contents as a filter.
++     *
++     * Filtering is recursive, so a group stays visible when any package inside
++     * it matches. While a filter is active the tree is expanded, otherwise
++     * matches nested inside collapsed groups would be invisible.
++     */
++    void setFilter( const QString& text );
++
+     Config* m_config;
++    QSortFilterProxyModel* m_filterModel;
+     Ui::Page_NetInst* ui;
+ };
+ 
+diff --git a/src/modules/netinstall/page_netinst.ui b/src/modules/netinstall/page_netinst.ui
+index dd87ef7..1cefb6d 100644
+--- a/src/modules/netinstall/page_netinst.ui
++++ b/src/modules/netinstall/page_netinst.ui
+@@ -25,6 +25,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
+      </property>
+     </widget>
+    </item>
++   <item>
++    <widget class="QLineEdit" name="searchbox">
++     <property name="clearButtonEnabled">
++      <bool>true</bool>
++     </property>
++    </widget>
++   </item>
+    <item>
+     <widget class="QScrollArea" name="scrollArea">
+      <property name="maximumSize">

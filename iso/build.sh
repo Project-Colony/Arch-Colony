@@ -99,6 +99,22 @@ PY
 	done
 fi
 
+# The installer's package tree is generated, not committed: it carries every
+# package in core/extra/multilib, which is a fact about the repositories on the
+# day the ISO is built rather than something to keep in git. Desktop and driver
+# definitions are derived from archinstall (GPL-3.0-or-later, same as us).
+if [[ -f "$STAGE/airootfs/etc/calamares/modules/netinstall.conf" ]]; then
+	ARCHINSTALL="${COLONY_ARCHINSTALL:-$WORK/archinstall}"
+	if [[ ! -d $ARCHINSTALL ]]; then
+		echo "==> fetching archinstall (desktop and driver definitions)"
+		git clone -q --depth 1 https://github.com/archlinux/archinstall.git "$ARCHINSTALL" \
+			|| { echo "cannot fetch archinstall; set COLONY_ARCHINSTALL to a checkout" >&2; exit 1; }
+	fi
+	echo "==> generating the installer package tree"
+	"$ROOT/tools/gen-netinstall.py" --archinstall "$ARCHINSTALL" \
+		> "$STAGE/airootfs/etc/calamares/modules/netinstall.yaml"
+fi
+
 echo "==> mkarchiso ($PROFILE)"
 sudo mkarchiso -v -w "$WORK/work" -o "$DEST" "$STAGE"
 
