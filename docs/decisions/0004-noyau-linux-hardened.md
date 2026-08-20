@@ -1,7 +1,7 @@
 # ADR-0004 — Noyau : `linux-hardened` d'Arch, sans paquet maison
 
 **Statut** : acceptée — 2026-08-19
-**Point de vigilance** : dépendance eBPF de CFC, voir « À vérifier »
+**Validée le 2026-08-21** — la question BTF qui la retenait est tranchée, voir plus bas.
 
 ## Contexte
 
@@ -35,14 +35,38 @@ robustesse, pas du débit. Un noyau de la famille performance reste installable 
 l'utilisateur depuis les dépôts d'Arch ; simplement, ce n'est pas ce qui est livré ni testé
 par défaut.
 
-## À vérifier — bloquant pour la validation de cette ADR
+## Résolu le 2026-08-21 — `linux-hardened` a bien BTF
+
+Le noyau n'expose pas sa configuration : ni `/proc/config.gz`, ni section `IKCFG_ST` dans
+son image. La réponse est venue par un détour, et elle est nette.
+
+Un module quelconque du paquet — `aegis128-aesni.ko` — contient une section `.BTF` :
+
+```
+[38] .BTF   PROGBITS   0000000000000000   002304   00036e
+```
+
+Or `CONFIG_DEBUG_INFO_BTF_MODULES` **dépend** de `CONFIG_DEBUG_INFO_BTF` : le BTF des
+modules ne peut pas exister sans celui du noyau. Corroboré par `pahole` dans les
+dépendances de `linux-hardened-headers` — cet outil ne sert qu'à générer du BTF.
+
+**Conséquence** : le chargeur CO-RE eBPF de Colony Firewall Control peut fonctionner sur le
+noyau que cette distribution livre. Cette ADR est validée.
+
+Vérifié au passage : les cinq noyaux d'Arch (`linux`, `linux-lts`, `linux-zen`,
+`linux-hardened`, `linux-rt`) portent tous `pahole`, donc probablement tous BTF. **BTF n'est
+donc pas le critère qui limiterait un choix de noyau** — voir la section suivante.
+
+Ce qui reste non vérifié, et ne se vérifie qu'à l'exécution : que les programmes eBPF de CFC
+se **chargent** réellement. BTF est nécessaire, pas suffisant — restent le *lockdown* sous
+Secure Boot et les restrictions BPF propres à `linux-hardened`.
+
+## À vérifier — le reste
 
 Ces points décident si la décision tient. Ils demandent une vérification sur machine et sur
 les sources de configuration d'Arch, pas un raisonnement :
 
-1. `CONFIG_DEBUG_INFO_BTF` est-il activé dans `linux-hardened` ? Si le chargeur eBPF de CFC
-   fait du CO-RE et que BTF est absent, le chargement échoue et cette ADR tombe.
-2. `CONFIG_BPF_SYSCALL`, `CONFIG_CGROUP_BPF`, `CONFIG_BPF_JIT`,
+1. `CONFIG_BPF_SYSCALL`, `CONFIG_CGROUP_BPF`, `CONFIG_BPF_JIT`,
    `CONFIG_NETFILTER_NETLINK_QUEUE`, `CONFIG_NF_TABLES` — présents ?
 
    **Mesure partielle du 2026-08-19**, relevée dans `/proc/config.gz` sur une machine Arch
@@ -80,12 +104,32 @@ les sources de configuration d'Arch, pas un raisonnement :
    bloquer des opérations BPF pour root lui-même. C'est le scénario qui passe sur la machine
    de développement et casse chez l'utilisateur.
 
-Tant que le point 1 n'est pas vérifié, cette ADR est acceptée mais non validée.
+## Choix du noyau à l'installation — pourquoi ce n'est pas une case à cocher
+
+`archinstall` propose six noyaux parce qu'il fait un `pacstrap` neuf : le noyau y est un
+paramètre, décidé avant que rien ne soit écrit. Arch Colony copie un système de fichiers
+déjà construit, donc `linux-hardened` est **déjà sur le disque** quand l'utilisateur voit la
+première page. Un choix serait un ajout, pas un remplacement.
+
+Deux obstacles concrets, à lever avant d'y toucher :
+
+- `bootloader` s'exécute **avant** `packages` dans la séquence. Un noyau installé depuis la
+  page logiciels n'obtiendrait aucune entrée d'amorçage : présent sur le disque, invisible
+  au démarrage.
+- CFC devrait être vérifié sur chaque noyau proposé, et ça ne se vérifie qu'en exécutant.
+
+Ce qui reste cohérent sans rien remettre en cause : un noyau **supplémentaire** de secours,
+`linux-lts`, en seconde entrée d'amorçage. Ça n'entame pas « durci par défaut », ça le rend
+survivable le jour où une mise à jour casse quelque chose. À traiter au jalon 4, où l'on
+touche déjà au noyau et à l'amorçage.
 
 ## Alternatives écartées
 
 - **`linux-colony` maison** — contrôle total, mais rebase à chaque version et responsabilité
-  de la signature Secure Boot. À reprendre uniquement si le point 1 échoue.
+  de la signature Secure Boot. La raison de le garder en réserve a disparu avec la
+  confirmation de BTF ; il ne reviendrait que si le *lockdown* empêchait CFC de charger ses
+  programmes, ce qui reste à vérifier à l'exécution.
 - **Base performance durcie** — les deux objectifs tirent en sens inverse.
-- **Deux noyaux au choix** — double la surface de test pour un bénéfice qui n'existe pas
-  tant qu'on n'a pas un seul noyau qui marche.
+- **Deux noyaux au choix** — écarté au 2026-08-19 parce qu'on n'avait pas encore un seul
+  noyau qui marche. On l'a maintenant, donc l'argument est tombé : voir la section sur le
+  choix du noyau à l'installation, qui remplace celle-ci.
