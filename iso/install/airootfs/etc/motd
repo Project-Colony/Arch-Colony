@@ -6,9 +6,14 @@ qu'il s'est arrêté ou que vous avez ouvert une autre console.
   Relancer l'installateur     cage -- calamares
   Voir pourquoi il a échoué   grep -iE 'error|warning' ~/.cache/calamares/session.log | tail -30
 
-Réseau : l'Ethernet et le DHCP fonctionnent automatiquement. Pour le Wi-Fi,
-utiliser iwctl ; pour un modem mobile, mmcli. Le réseau n'est nécessaire que
-si vous choisissez des logiciels supplémentaires — l'installation elle-même
-fonctionne hors ligne.
+Réseau : il est DÉSACTIVÉ tant que vous ne l'avez pas autorisé au démarrage.
+Aucune interface n'est montée, ni filaire ni sans fil. C'est voulu : refuser
+signifie que cette machine ne joint rien, pas seulement qu'elle ne télécharge
+rien. L'installation fonctionne entièrement hors ligne ; le réseau ne sert qu'à
+installer des logiciels supplémentaires.
+
+  L'activer maintenant        systemctl start systemd-networkd systemd-resolved
+  Sans fil, ensuite           systemctl start iwd && iwctl
+  Modem mobile, ensuite       systemctl start ModemManager && mmcli
 
 Signaler un problème : https://github.com/Project-Colony/Arch-Colony/issues

@@ -1,0 +1,3 @@
+patching file src/modules/netinstall/NetInstallPage.cpp
+patching file src/modules/netinstall/NetInstallPage.h
+patching file src/modules/netinstall/page_netinst.ui

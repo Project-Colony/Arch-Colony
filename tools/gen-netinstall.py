@@ -5,7 +5,7 @@ Three sections come out of this:
 
   Bureaux            the desktop profiles, ported from archinstall
   Pilotes graphiques the graphics driver sets, ported from archinstall
-  Dépôts             every package in core, extra and multilib
+  Dépôts             every package in core and extra
 
 The desktop and driver data is derived from archinstall
 (https://github.com/archlinux/archinstall), GPL-3.0-or-later, the same licence as
@@ -66,13 +66,36 @@ DRIVERS = [
 ]
 
 
+# Greeter packages and the unit to enable, from archinstall's
+# ProfileHandler.install_greeter(). This matters more than it looks: archinstall
+# does NOT put the greeter in Profile.packages, it installs it separately. Reading
+# only `packages` therefore yields a desktop with no login manager, which installs
+# cleanly and then boots to a text console.
+#
+# Keyed by the lowercased GreeterType member name, which is what the parser reads
+# out of `return GreeterType.Xxx`. The enum *values* are different strings again
+# (GreeterType.Lightdm == 'lightdm-gtk-greeter'), so neither the member name nor
+# the value is a package name — the mapping has to be explicit.
+GREETERS = {
+    "lightdm": (["lightdm", "lightdm-gtk-greeter"], "lightdm"),
+    "lightdmslick": (["lightdm", "lightdm-slick-greeter"], "lightdm"),
+    "sddm": (["sddm"], "sddm"),
+    "gdm": (["gdm"], "gdm"),
+    "ly": (["ly"], "ly@tty1"),
+    "cosmicsession": (["cosmic-greeter"], "cosmic-greeter"),
+    "plasmaloginmanager": (["plasma-login-manager"], "plasmalogin"),
+    "greetddms": (["greetd"], "greetd"),
+}
+
 # Profiles whose package list cannot be read statically, because it depends on a
 # choice archinstall makes interactively. Arch Colony takes the default that
 # archinstall itself marks as recommended.
 OVERRIDES = {
     # PlasmaProfile.packages reads a flavour the user picks: plasma-meta,
     # plasma or plasma-desktop. Meta is the one archinstall labels "Recommended".
-    "plasma.py": {"name": "KDE Plasma", "packages": ["plasma-meta"], "greeter": "sddm"},
+    # Its greeter is PlasmaLoginManager, not sddm.
+    "plasma.py": {"name": "KDE Plasma", "packages": ["plasma-meta"],
+                  "greeter": "plasmaloginmanager"},
 }
 
 
@@ -144,6 +167,8 @@ def emit(groups: list[dict]) -> str:
             lines.append(f'  description: "{g["description"]}"')
         lines.append("  selected: false")
         lines.append(f'  expanded: {"true" if g.get("expanded") else "false"}')
+        if g.get("noncheckable"):
+            lines.append("  noncheckable: true")
         if g.get("packages"):
             lines.append("  packages:")
             lines.extend(f'    - "{p}"' for p in g["packages"])
@@ -154,6 +179,8 @@ def emit(groups: list[dict]) -> str:
                 if sub.get("description"):
                     lines.append(f'      description: "{sub["description"]}"')
                 lines.append("      selected: false")
+                if sub.get("noncheckable"):
+                    lines.append("      noncheckable: true")
                 lines.append("      packages:")
                 lines.extend(f'        - "{p}"' for p in sub["packages"])
         lines.append("")
@@ -164,7 +191,12 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--archinstall", required=True, type=Path,
                     help="path to an archinstall checkout")
-    ap.add_argument("--repos", nargs="+", default=["core", "extra", "multilib"])
+    # multilib is deliberately absent. It is not enabled in the target's
+    # pacman.conf — mkarchiso pacstraps with -G -M and installs pacman's stock
+    # config, and the cleanup step only adds [colony] — so every lib32 package
+    # offered here would fail to install, silently. Offering something that
+    # cannot work is worse than not offering it.
+    ap.add_argument("--repos", nargs="+", default=["core", "extra"])
     args = ap.parse_args()
 
     desktops_dir = args.archinstall / "archinstall" / "default_profiles" / "desktops"
@@ -186,6 +218,20 @@ def main() -> None:
         print(f"# profils non analysables, ignorés : {', '.join(skipped)}", file=sys.stderr)
     print(f"# {len(desktops)} bureaux extraits", file=sys.stderr)
 
+    # The greeter is not part of archinstall's Profile.packages; it is installed
+    # separately by install_greeter(). Without this, every desktop here would
+    # install cleanly and then boot to a text console.
+    for d in desktops:
+        g = d.get("greeter")
+        if g is None:
+            continue
+        if g not in GREETERS:
+            sys.exit(f"{d['source']}: unknown GreeterType '{g}' — add it to GREETERS. "
+                     "Refusing to emit a desktop that would install without a login manager.")
+        pkgs, unit = GREETERS[g]
+        d["packages"] = d["packages"] + [p for p in pkgs if p not in d["packages"]]
+        d["greeter_unit"] = unit
+
     groups = [
         {
             "name": "Bureaux",
@@ -194,7 +240,7 @@ def main() -> None:
             "subgroups": [
                 {
                     "name": d["name"],
-                    "description": (f"greeter : {d['greeter']}" if d["greeter"]
+                    "description": (f"greeter : {d['greeter_unit']}" if d.get("greeter_unit")
                                     else "sans greeter par défaut"),
                     "packages": d["packages"],
                 }
@@ -214,12 +260,20 @@ def main() -> None:
     repos = repo_packages(args.repos)
     total = sum(len(v) for v in repos.values())
     print(f"# {total} paquets de dépôt", file=sys.stderr)
+    # noncheckable, and this is not cosmetic. PackageTreeItem::setSelected walks
+    # the source tree, so ticking "extra" would select all 14910 of its packages
+    # in one click — and the filter proxy makes that easy to do by accident, since
+    # a search leaves the group visible with only its matches shown underneath.
+    # noncheckable removes Qt::ItemIsUserCheckable from the group alone; unlike
+    # immutable it does not propagate, so individual packages stay selectable.
     groups.append({
         "name": "Dépôts",
         "description": f"Tous les paquets d'Arch ({total}). Utiliser la recherche.",
         "expanded": False,
+        "noncheckable": True,
         "subgroups": [
-            {"name": repo, "description": f"{len(names)} paquets", "packages": names}
+            {"name": repo, "description": f"{len(names)} paquets",
+             "noncheckable": True, "packages": names}
             for repo, names in repos.items()
         ],
     })

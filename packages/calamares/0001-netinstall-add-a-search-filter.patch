@@ -1,5 +1,5 @@
 diff --git a/src/modules/netinstall/NetInstallPage.cpp b/src/modules/netinstall/NetInstallPage.cpp
-index 9c70e97..952088c 100644
+index 9c70e97..5e8f0a5 100644
 --- a/src/modules/netinstall/NetInstallPage.cpp
 +++ b/src/modules/netinstall/NetInstallPage.cpp
 @@ -24,6 +24,7 @@
@@ -10,7 +10,7 @@ index 9c70e97..952088c 100644
  #include <QNetworkReply>
  
  NetInstallPage::NetInstallPage( Config* c, QWidget* parent )
-@@ -33,7 +34,20 @@ NetInstallPage::NetInstallPage( Config* c, QWidget* parent )
+@@ -33,7 +34,38 @@ NetInstallPage::NetInstallPage( Config* c, QWidget* parent )
  {
      ui->setupUi( this );
      ui->groupswidget->header()->setSectionResizeMode( QHeaderView::ResizeToContents );
@@ -24,15 +24,33 @@ index 9c70e97..952088c 100644
 +    m_filterModel->setSourceModel( c->model() );
 +    m_filterModel->setRecursiveFilteringEnabled( true );
 +    m_filterModel->setFilterCaseSensitivity( Qt::CaseInsensitive );
-+    m_filterModel->setFilterKeyColumn( -1 );
++    // Column 0 only. Filtering every column matches on descriptions too, and
++    // QSortFilterProxyModel does not accept a row's children just because the row
++    // itself matched (autoAcceptChildRows is false by default) — so a search for a
++    // word that appears in a group's description yields that group with none of
++    // its packages under it.
++    m_filterModel->setFilterKeyColumn( 0 );
 +    ui->groupswidget->setModel( m_filterModel );
 +
 +    ui->searchbox->setPlaceholderText( tr( "Search packages" ) );
 +    connect( ui->searchbox, &QLineEdit::textChanged, this, &NetInstallPage::setFilter );
++
++    // PackageModel::setData emits dataChanged with a malformed range: it calls
++    // index.sibling( index.column(), index.row() ), and sibling() takes (row,
++    // column). For any row past the first the column is out of bounds and the
++    // index is invalid. Upstream this is harmless, because QAbstractItemView
++    // repaints the whole viewport regardless of the range — but a proxy drops the
++    // signal outright when an endpoint is invalid, so checkboxes would stop
++    // redrawing as soon as a proxy was inserted. Repaint unconditionally rather
++    // than let the view show state that no longer matches the model.
++    connect( c->model(),
++             &QAbstractItemModel::dataChanged,
++             this,
++             [ ui = this->ui ]() { ui->groupswidget->viewport()->update(); } );
      connect( c, &Config::statusChanged, ui->netinst_status, &QLabel::setText );
      connect( c,
               &Config::titleLabelChanged,
-@@ -57,11 +71,26 @@ NetInstallPage::expandGroups()
+@@ -57,11 +89,26 @@ NetInstallPage::expandGroups()
          auto index = model->index( i, 0 );
          if ( model->data( index, PackageModel::MetaExpandRole ).toBool() )
          {

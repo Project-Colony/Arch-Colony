@@ -1,0 +1,14 @@
+# Used in place of the generated package tree when the user declined network
+# access at boot. Everything on that page has to be downloaded, so offering it
+# would let someone tick twenty desktops and reach a green "Finished" page on a
+# machine with no desktop and no explanation — Calamares logs a failed install as
+# a warning, not an error.
+#
+# A single hidden group rather than an empty document: netinstall wants a list of
+# groups, and an empty file is a parse failure rather than an empty page.
+- name: "Réseau désactivé"
+  description: "Le réseau a été refusé au démarrage. Les logiciels supplémentaires se téléchargent, ils ne sont donc pas proposés. L'installation continue normalement, et tout reste installable ensuite avec pacman ou paru."
+  selected: false
+  expanded: false
+  noncheckable: true
+  packages: []

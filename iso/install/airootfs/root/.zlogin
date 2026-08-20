@@ -30,8 +30,14 @@ if [[ -z $WAYLAND_DISPLAY && $XDG_VTNR == 1 ]]; then
         systemctl start systemd-networkd systemd-resolved systemd-timesyncd 2>/dev/null
         systemctl start iwd ModemManager 2>/dev/null
         systemctl start systemd-networkd-wait-online 2>/dev/null
+        cp /usr/share/colony/netinstall.yaml /etc/calamares/modules/netinstall.yaml
     else
         print "Réseau laissé désactivé."
+        # The package page only offers downloads. Replacing the tree with a
+        # placeholder is what makes the refusal mean something: without it the
+        # page still renders in full, since a file:// groups list loads happily
+        # with no interface up, and a selection would be silently discarded.
+        cp /usr/share/colony/netinstall-offline.yaml /etc/calamares/modules/netinstall.yaml
     fi
     unset _colony_net
     print

@@ -100,7 +100,7 @@ PY
 fi
 
 # The installer's package tree is generated, not committed: it carries every
-# package in core/extra/multilib, which is a fact about the repositories on the
+# package in core and extra, which is a fact about the repositories on the
 # day the ISO is built rather than something to keep in git. Desktop and driver
 # definitions are derived from archinstall (GPL-3.0-or-later, same as us).
 if [[ -f "$STAGE/airootfs/etc/calamares/modules/netinstall.conf" ]]; then
@@ -111,8 +111,14 @@ if [[ -f "$STAGE/airootfs/etc/calamares/modules/netinstall.conf" ]]; then
 			|| { echo "cannot fetch archinstall; set COLONY_ARCHINSTALL to a checkout" >&2; exit 1; }
 	fi
 	echo "==> generating the installer package tree"
+	# Written to /usr/share, not to the path Calamares reads. .zlogin copies it
+	# into place only if the user allowed network access at boot; otherwise it
+	# installs the offline placeholder instead. Everything on that page is a
+	# download, so offering it to someone who declined the network would let them
+	# select twenty desktops and reach a green "Finished" with none of them.
+	mkdir -p "$STAGE/airootfs/usr/share/colony"
 	"$ROOT/tools/gen-netinstall.py" --archinstall "$ARCHINSTALL" \
-		> "$STAGE/airootfs/etc/calamares/modules/netinstall.yaml"
+		> "$STAGE/airootfs/usr/share/colony/netinstall.yaml"
 fi
 
 echo "==> mkarchiso ($PROFILE)"
