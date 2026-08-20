@@ -116,6 +116,21 @@ tourne et filtre dans les deux sens, et la machine a toujours du réseau.
 - CFC intégré au système : activé au démarrage, jeu de règles initial semé à l'installation,
   **garde-fou anti-verrouillage** pour la politique entrante
 
+**Une mine, signalée par la session CFC le 2026-08-21.** `ProtectKernelTunables` de systemd
+261 remonte `/sys` en lecture seule **récursivement**, et casse les épinglages BPF. Or CFC
+tient précisément sa propriété la plus importante de ces épinglages : depuis le 2026-08-21,
+son application survit à l'arrêt du démon — un processus lancé *après* la mort du démon
+reçoit `EPERM` en 0 ms, mesuré. C'est exactement le durcissement d'unités systemd que ce
+jalon veut généraliser qui peut l'éteindre.
+
+Et l'extinction est **silencieuse** : CFC continue de tourner et de filtrer, il perd sans le
+dire la couche qui survit à sa propre mort. `cfc status` affiche désormais le niveau
+d'application — l'instrumenter **avant** d'introduire quoi que ce soit qui puisse
+l'éteindre, pas après.
+
+Conséquence pratique : arrêter le service ne désactive plus CFC. Il faut aussi
+`rm -rf /sys/fs/bpf/colony-firewall`. C'est la contrepartie de la propriété ci-dessus.
+
 **Le point délicat.** Une politique entrante fail-closed activée au démarrage est le moyen le
 plus sûr de livrer un ISO qui ressemble à une panne réseau — et, sur une machine distante,
 d'enfermer l'utilisateur dehors. Le garde-fou n'est pas une finition, c'est une condition de
