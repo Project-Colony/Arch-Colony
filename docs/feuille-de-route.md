@@ -9,7 +9,7 @@ jalon dont on connaîtra vraiment le coût une fois fait.
 
 ---
 
-## J0 — Le dépôt existe
+## J0 — Le dépôt existe  ✅ *fait le 2026-08-19*
 
 **Artefact vérifiable** : depuis une VM Arch vierge, ajouter `[colony]` à `pacman.conf`,
 importer la clé, et installer `colony-mirrorlist` avec `pacman -S`.
@@ -27,7 +27,7 @@ utilisateurs.
 
 ---
 
-## J1 — Le plus petit ISO qui démarre
+## J1 — Le plus petit ISO qui démarre  ✅ *fait le 2026-08-20*
 
 **Artefact vérifiable** : un ISO qui démarre en VM jusqu'à un shell root, où
 `cat /etc/os-release` affiche Arch Colony.
@@ -44,7 +44,7 @@ réel de la construction d'image, qui conditionne toutes les estimations suivant
 
 ---
 
-## J2 — Installable sur disque
+## J2 — Installable sur disque  ✅ *fait le 2026-08-21*
 
 **Artefact vérifiable** : depuis l'ISO, installer sur un disque virtuel, redémarrer, et
 ouvrir une session sur le système installé.
@@ -57,9 +57,28 @@ ouvrir une session sur le système installé.
 **Effort** : deux à quatre semaines. **Risque** : moyen — Calamares est éprouvé, sa
 configuration l'est moins.
 
-**Bloquant à lever avant J2** : la vérification `CONFIG_DEBUG_INFO_BTF` de
-[ADR-0004](decisions/0004-noyau-linux-hardened.md). Si elle échoue, le choix du noyau change
-et J2 est retardé.
+**Ce que J2 a réellement coûté.** Beaucoup plus que « configurer Calamares ». Deux revues
+adversariales ont trouvé 54 défauts confirmés, dont aucun n'était visible à la construction :
+l'ISO se fabriquait en vert tout en produisant une installation qui ne pouvait pas aboutir.
+Les plus coûteux, par ordre de gravité :
+
+- rien de ce qui était coché ne s'installait — `mkarchiso` supprime la base de
+  synchronisation de pacman, et la correction évidente dépendait d'un contrôle réseau
+  retiré deux commits plus tôt ;
+- aucun bureau n'atteignait une session graphique — `archinstall` n'inclut pas le greeter
+  dans `packages`, et le module `displaymanager` de Calamares n'active rien ;
+- une installation BIOS effaçait le disque puis mourait sur un `KeyError` ;
+- le système installé n'avait **aucun miroir** : le `mirrorlist` livré a tous ses serveurs
+  commentés, et un minuteur `reflector` ne sert à rien pour la première synchronisation ;
+- Calamares substitue ses propres variables avant le shell, donc un `$n` dans un message de
+  journalisation faisait tomber toute l'installation.
+
+**Ce que ça enseigne pour la suite :** un ISO qui se construit ne prouve rien, et une revue
+de code trouve ce qu'une relecture ne trouve pas. Les deux revues ont été rentables.
+
+**Toujours pas vérifié** : `CONFIG_DEBUG_INFO_BTF` dans `linux-hardened`
+([ADR-0004](decisions/0004-noyau-linux-hardened.md)). Le noyau démarre et installe, donc
+l'ADR tient en pratique — mais la question eBPF pour CFC reste ouverte.
 
 ---
 
@@ -67,6 +86,13 @@ et J2 est retardé.
 
 **Artefact vérifiable** : le système installé démarre sur une session Hyprland thémée
 Colony, avec le hub `colony` lancé.
+
+**Point de départ réel, mesuré à J2** : l'installateur propose déjà 20 bureaux et Hyprland
+s'installe et démarre — mais c'est du Hyprland *d'origine*, avec sa configuration
+auto-générée. L'écart à combler est donc l'habillage et l'intégration, pas la mise en
+marche. Deux défauts connus à traiter ici : la disposition clavier de SDDM (son greeter
+Wayland ne lit pas `/etc/X11/xorg.conf.d/`, il lui faut sa propre configuration), et
+l'absence de thème Colony sur le greeter comme sur la session.
 
 - `colony-desktop-hyprland`, issu de `hyprland-colony` empaqueté
   ([ADR-0007](decisions/0007-configuration-en-paquets.md))
