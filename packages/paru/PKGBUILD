@@ -1,0 +1,57 @@
+# Maintainer: MotherSphere <linhajahad@gmail.com>
+# Upstream PKGBUILD by Morgan <morganamilo@archlinux.org>, packaged from the AUR.
+#
+# paru is not in Arch's repositories — only in the AUR — so Arch Colony packages it.
+# It does not exist upstream, so this does not violate ADR-0002.
+#
+# Worth being precise about what this is: paru does NOT replace pacman. It wraps it,
+# delegating official repositories to pacman and adding AUR access on top. pacman
+# remains the package manager; paru is a convenience, and one that nearly every Arch
+# derivative ships.
+#
+# arch is x86_64 only here — upstream lists seven architectures, we target one
+# (see docs/feuille-de-route.md, other architectures are not planned).
+
+pkgname=paru
+pkgver=2.1.0
+pkgrel=1
+pkgdesc='Feature packed AUR helper'
+arch=('x86_64')
+url='https://github.com/morganamilo/paru'
+license=('GPL-3.0-or-later')
+depends=('git' 'pacman' 'libalpm.so>=14')
+makedepends=('cargo')
+optdepends=('bat: colored pkgbuild printing'
+            'devtools: build in chroot and downloading pkgbuilds')
+backup=('etc/paru.conf')
+source=("$pkgname-$pkgver.tar.gz::https://github.com/Morganamilo/paru/archive/v$pkgver.tar.gz")
+sha256sums=('eea4dbb524db765d5316f540f9ee670c0bf81aae4827b5417eebb4c9b5651727')
+
+prepare() {
+	cd "$pkgname-$pkgver"
+	cargo update alpm alpm-utils
+	cargo fetch --locked --target "$(rustc -vV | sed -n 's|host: ||p')"
+}
+
+build() {
+	cd "$pkgname-$pkgver"
+	cargo build --frozen --release --target-dir target
+	./scripts/mkmo locale/
+}
+
+package() {
+	cd "$pkgname-$pkgver"
+
+	install -Dm755 target/release/paru "$pkgdir/usr/bin/paru"
+	install -Dm644 paru.conf "$pkgdir/etc/paru.conf"
+
+	install -Dm644 man/paru.8 "$pkgdir/usr/share/man/man8/paru.8"
+	install -Dm644 man/paru.conf.5 "$pkgdir/usr/share/man/man5/paru.conf.5"
+
+	install -Dm644 completions/bash "$pkgdir/usr/share/bash-completion/completions/paru.bash"
+	install -Dm644 completions/fish "$pkgdir/usr/share/fish/vendor_completions.d/paru.fish"
+	install -Dm644 completions/zsh  "$pkgdir/usr/share/zsh/site-functions/_paru"
+
+	install -d "$pkgdir/usr/share/"
+	cp -r locale "$pkgdir/usr/share/"
+}

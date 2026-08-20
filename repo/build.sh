@@ -50,7 +50,18 @@ for p in "${pkgs[@]}"; do
 	built=("${keep[@]}")
 
 	for f in "${built[@]}"; do
-		echo "==> signing $(basename "$f")"
+		# Drop older builds of the same package first. Without this a rebuild leaves
+		# both versions in repo/out, repo-add indexes what it finds, and publish.sh
+		# uploads *.pkg.tar.zst unfiltered — so the stale build ships too. Observed
+		# after bumping colony-mirrorlist to pkgrel 2.
+		#
+		# The stem is the filename minus pkgver-pkgrel-arch, which is unambiguous
+		# because an Arch pkgver may not contain a dash.
+		base=$(basename "$f")
+		stem=${base%-*-*-*.pkg.tar.zst}
+		rm -f "$OUT/$stem"-*-*-*.pkg.tar.zst "$OUT/$stem"-*-*-*.pkg.tar.zst.sig
+
+		echo "==> signing $base"
 		gpg --detach-sign --no-armor --local-user "$COLONY_SIGNING_KEY" --yes "$f"
 		mv -f "$f" "$f.sig" "$OUT/"
 	done

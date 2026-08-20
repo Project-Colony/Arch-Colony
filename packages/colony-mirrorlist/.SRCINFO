@@ -1,12 +1,14 @@
 pkgbase = colony-mirrorlist
 	pkgdesc = Arch Colony repository mirrorlist
 	pkgver = 20260819
-	pkgrel = 1
+	pkgrel = 2
 	url = https://github.com/Project-Colony/Arch-Colony
 	arch = any
 	license = GPL-3.0-or-later
 	backup = etc/pacman.d/colony-mirrorlist
 	source = colony-mirrorlist
+	source = colony-repo.conf
+	sha256sums = SKIP
 	sha256sums = SKIP
 
 pkgname = colony-mirrorlist

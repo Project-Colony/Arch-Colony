@@ -1,0 +1,7 @@
+paru E: Soname dependency libalpm.so specified without version number
+paru W: Soname dependency included, but may not be needed ('libalpm.so')
+paru W: Dependency glibc detected and implicitly satisfied (libraries ['usr/lib/libm.so.6', 'usr/lib/libc.so.6'] needed in files ['usr/bin/paru'])
+paru W: Dependency openssl detected and implicitly satisfied (libraries ['usr/lib/libssl.so.3', 'usr/lib/libcrypto.so.3'] needed in files ['usr/bin/paru'])
+paru W: Dependency libgcc detected and implicitly satisfied (libraries ['usr/lib/libgcc_s.so.1'] needed in files ['usr/bin/paru'])
+paru W: Dependency included, but may not be needed ('git')
+paru W: Dependency included, but may not be needed ('libalpm.so')
