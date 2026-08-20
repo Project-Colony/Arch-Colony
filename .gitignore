@@ -1,5 +1,8 @@
 # Build output
 repo/out/
+iso/work/
+iso/out/
+*.iso
 *.pkg.tar.zst
 *.pkg.tar.zst.sig
 src/

@@ -1,0 +1,24 @@
+# Maintainer: MotherSphere <linhajahad@gmail.com>
+
+# Ships /etc/os-release only. /usr/lib/os-release belongs to `filesystem`, and taking
+# it would shadow a base package — see ADR-0002. The os-release specification has
+# consumers read /etc first and fall back to /usr/lib, so this takes precedence
+# without replacing anything.
+#
+# ANSI_COLOR is 38;2;255;210;62, i.e. #ffd23e, the accent of the stellar_blade/lily
+# variant in Project-Colony-Resources. It is transcribed here rather than generated;
+# turning it into a colony-tokens target is J3 work (principe 4).
+
+pkgname=colony-release
+pkgver=20260820
+pkgrel=1
+pkgdesc='Arch Colony system identity'
+arch=('any')
+url='https://github.com/Project-Colony/Arch-Colony'
+license=('GPL-3.0-or-later')
+source=('os-release')
+sha256sums=('SKIP')
+
+package() {
+	install -Dm644 os-release "$pkgdir/etc/os-release"
+}

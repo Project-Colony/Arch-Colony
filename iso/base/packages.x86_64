@@ -1,0 +1,9 @@
+base
+linux-hardened
+mkinitcpio
+mkinitcpio-archiso
+syslinux
+qemu-guest-agent
+colony-keyring
+colony-mirrorlist
+colony-release

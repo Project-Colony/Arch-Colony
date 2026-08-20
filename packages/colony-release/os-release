@@ -1,0 +1,11 @@
+NAME="Arch Colony"
+PRETTY_NAME="Arch Colony"
+ID=archcolony
+ID_LIKE=arch
+BUILD_ID=rolling
+ANSI_COLOR="38;2;255;210;62"
+HOME_URL="https://github.com/Project-Colony/Arch-Colony"
+DOCUMENTATION_URL="https://github.com/Project-Colony/Arch-Colony/tree/main/docs"
+SUPPORT_URL="https://github.com/Project-Colony/Arch-Colony/issues"
+BUG_REPORT_URL="https://github.com/Project-Colony/Arch-Colony/issues"
+LOGO=archcolony

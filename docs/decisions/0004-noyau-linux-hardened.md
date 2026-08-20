@@ -59,6 +59,21 @@ les sources de configuration d'Arch, pas un raisonnement :
    résultat rend l'hypothèse vraisemblable, il ne la démontre pas. La vérification doit être
    refaite sur un système démarré sous `linux-hardened`.
 
+   **Première divergence observée, 2026-08-20.** `linux-hardened` ne lit pas la même chose
+   que `linux`. Le profil `baseline` d'archiso compresse son `airootfs` en erofs+LZMA avec
+   *tail-packing* ; l'image démarre sous `linux-hardened` mais échoue ensuite à lire ses
+   métadonnées :
+
+   ```
+   erofs (device loop0): failed to read inode meta block (nid: 9275766): -4
+   ```
+
+   L'image n'est pas en cause : le noyau `linux` de la machine hôte la monte et en lit les
+   fichiers sans erreur. C'est bien une différence de configuration côté noyau. Le profil
+   d'Arch Colony utilise donc squashfs+xz, comme le profil `releng` d'Arch. Cette
+   observation ne dit rien de BTF, mais elle confirme que l'hypothèse du point 1 doit être
+   vérifiée et non supposée.
+
 3. Distinguer trois choses souvent confondues : la restriction eBPF *non privilégié*
    (sans effet sur un démon root doté de `CAP_BPF`), la configuration de compilation, et le
    *lockdown* à l'exécution. Sous Secure Boot, le lockdown s'active automatiquement et peut
