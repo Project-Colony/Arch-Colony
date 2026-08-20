@@ -56,6 +56,49 @@ cp -r "$SRC" "$STAGE"
 REPO_URL=${PKGS// /%20}
 sed -i "s|@COLONY_REPO@|$REPO_URL|g" "$STAGE/pacman.conf"
 
+# Colours come from the token system, never from a file in this repository
+# (principe 4). Any *.in under the staged profile is filled in here from
+# Project-Colony-Resources' generated artifact — the same artifact every other
+# Colony program consumes, rather than a second copy of the palette.
+shopt -s nullglob globstar
+templates=("$STAGE"/**/*.in)
+shopt -u nullglob globstar
+if (( ${#templates[@]} )); then
+	RESOURCES="${COLONY_RESOURCES:-$ROOT/../Project-Colony-Resources}"
+	THEMES="$RESOURCES/generated/themes.json"
+	[[ -f $THEMES ]] || {
+		echo "cannot resolve theme tokens: $THEMES not found." >&2
+		echo "Set COLONY_RESOURCES to the Project-Colony-Resources checkout." >&2
+		exit 1
+	}
+	echo "==> resolving theme tokens from $THEMES"
+	eval "$(python3 - "$THEMES" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+pal = next(v['palette'] for f in d['families'] if f.get('key') == 'stellar_blade'
+           for v in f['variants'] if v.get('key') == 'lily')
+def need(k):
+    v = pal.get(k)
+    if not v:
+        sys.exit(f"palette field '{k}' missing from the generated tokens")
+    return v
+print(f"SIDEBAR_BG={need('bg_primary')}")
+print(f"SIDEBAR_TEXT={need('text_primary')}")
+print(f"SIDEBAR_BG_CURRENT={need('accent_icon')}")
+print(f"SIDEBAR_TEXT_CURRENT={need('bg_primary')}")
+PY
+	)"
+	for t in "${templates[@]}"; do
+		sed -e "s|@SIDEBAR_BG@|$SIDEBAR_BG|g" \
+		    -e "s|@SIDEBAR_TEXT@|$SIDEBAR_TEXT|g" \
+		    -e "s|@SIDEBAR_BG_CURRENT@|$SIDEBAR_BG_CURRENT|g" \
+		    -e "s|@SIDEBAR_TEXT_CURRENT@|$SIDEBAR_TEXT_CURRENT|g" \
+		    "$t" > "${t%.in}"
+		rm -f "$t"
+		echo "    ${t#"$STAGE/"} -> ${t%.in}" | sed "s|$STAGE/||g"
+	done
+fi
+
 echo "==> mkarchiso ($PROFILE)"
 sudo mkarchiso -v -w "$WORK/work" -o "$DEST" "$STAGE"
 

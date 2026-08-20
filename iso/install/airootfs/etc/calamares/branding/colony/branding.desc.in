@@ -1,0 +1,57 @@
+# Arch Colony installer branding.
+#
+# Strings and logo only. There is deliberately no `style:` block: Calamares styles
+# the sidebar with hardcoded hex values, and principe 4 forbids writing a colour
+# anywhere but the token source in Project-Colony-Resources. Until colony-tokens
+# grows a Calamares target, the installer wears Calamares' own default palette —
+# which is honest, rather than a second place where Colony's colours are defined.
+#
+# logo.png is vendored from Colony/assets/icons/icon.png for the same reason it is
+# a problem: shared assets belong in Project-Colony-Resources, and there is no asset
+# target there yet. Replace this copy with a generated one when there is.
+---
+componentName: colony
+
+welcomeStyleCalamares: true
+welcomeExpandingLogo:  true
+windowExpanding:       normal
+windowSize:            900px,560px
+windowPlacement:       center
+sidebar:               widget
+navigation:            widget
+
+strings:
+    productName:         "Arch Colony"
+    shortProductName:    "Arch Colony"
+    version:             "rolling"
+    shortVersion:        "rolling"
+    versionedName:       "Arch Colony"
+    shortVersionedName:  "Arch Colony"
+    bootloaderEntryName: "Arch Colony"
+    productUrl:          "https://github.com/Project-Colony/Arch-Colony"
+    supportUrl:          "https://github.com/Project-Colony/Arch-Colony/tree/main/docs"
+    knownIssuesUrl:      "https://github.com/Project-Colony/Arch-Colony/issues"
+
+images:
+    productIcon:    "logo.png"
+    productLogo:    "logo.png"
+    productWelcome: "logo.png"
+
+# Not optional. Omitting it makes Calamares fail to start outright:
+#   WARNING: YAML error  key not found: slideshow in ".../branding.desc"
+#   ERROR: FATAL in ".../branding.desc"
+slideshow:    "show.qml"
+slideshowAPI: 2
+
+# Calamares requires this block — omitting it is fatal:
+#   WARNING: YAML error  invalid node; first invalid key: "style"
+#
+# So the colours cannot be avoided. They are NOT written here: iso/build.sh
+# substitutes them from Project-Colony-Resources' generated/themes.json, variant
+# stellar_blade/lily. This file is a template (.in) precisely so that no hex value
+# is ever stored in this repository — principe 4 holds.
+style:
+    SidebarBackground:        "@SIDEBAR_BG@"
+    SidebarText:              "@SIDEBAR_TEXT@"
+    SidebarBackgroundCurrent: "@SIDEBAR_BG_CURRENT@"
+    SidebarTextCurrent:       "@SIDEBAR_TEXT_CURRENT@"
