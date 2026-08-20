@@ -42,6 +42,11 @@ if [[ -z $WAYLAND_DISPLAY && $XDG_VTNR == 1 ]]; then
     unset _colony_net
     print
 
-    cage -- calamares
+    # libseat tries seatd before logind and prints two red lines when it does not
+    # find it. There is no seatd in this image and there is no reason for one —
+    # logind provides the seat. Naming the backend skips the failed attempt
+    # instead of hiding its message, which is the difference between silencing a
+    # warning and not producing it.
+    LIBSEAT_BACKEND=logind cage -- calamares
     print "installer exited ($?) — you are at a shell"
 fi
