@@ -15,6 +15,7 @@ clonezilla
 cloud-init
 colony-keyring
 colony-mirrorlist
+colony-mkinitcpio
 colony-release
 cryptsetup
 darkhttpd

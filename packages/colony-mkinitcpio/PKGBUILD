@@ -1,0 +1,35 @@
+# Maintainer: MotherSphere <linhajahad@gmail.com>
+
+# The mkinitcpio preset for linux-hardened, which no upstream package provides.
+#
+# Shipped twice, on purpose:
+#
+#   /etc/mkinitcpio.d/linux-hardened.preset   the real path, owned and backed up
+#   /usr/share/colony/mkinitcpio/…            an identical reference copy
+#
+# The reference copy exists because archiso's airootfs overlay overwrites files under
+# /etc after pacstrap, so inside the live image the real path holds archiso's own
+# preset (PRESETS=('archiso'), pointing at a kernel that is not on disk). unpackfs
+# then copies that onto every installed machine. The installer's cleanup step
+# restores the correct content from /usr/share, which archiso does not touch.
+#
+# Without this, `mkinitcpio -p linux-hardened` on the target fails with "specified
+# kernel image does not exist" and the installation stops before a bootloader is
+# written.
+
+pkgname=colony-mkinitcpio
+pkgver=20260820
+pkgrel=1
+pkgdesc='mkinitcpio preset for the Arch Colony kernel'
+arch=('any')
+url='https://github.com/Project-Colony/Arch-Colony'
+license=('GPL-3.0-or-later')
+depends=('mkinitcpio')
+backup=('etc/mkinitcpio.d/linux-hardened.preset')
+source=('linux-hardened.preset')
+sha256sums=('SKIP')
+
+package() {
+	install -Dm644 linux-hardened.preset "$pkgdir/etc/mkinitcpio.d/linux-hardened.preset"
+	install -Dm644 linux-hardened.preset "$pkgdir/usr/share/colony/mkinitcpio/linux-hardened.preset"
+}

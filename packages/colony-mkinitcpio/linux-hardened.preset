@@ -1,0 +1,13 @@
+# mkinitcpio preset file for the 'linux-hardened' package
+#
+# Arch's kernel packages do not ship a preset; mkinitcpio's alpm hooks expect one to
+# exist. Arch Colony ships linux-hardened (ADR-0004), so this is that preset.
+
+ALL_kver="/boot/vmlinuz-linux-hardened"
+
+PRESETS=('default' 'fallback')
+
+default_image="/boot/initramfs-linux-hardened.img"
+
+fallback_image="/boot/initramfs-linux-hardened-fallback.img"
+fallback_options="-S autodetect"

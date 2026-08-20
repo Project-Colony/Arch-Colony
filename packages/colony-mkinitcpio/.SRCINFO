@@ -1,0 +1,13 @@
+pkgbase = colony-mkinitcpio
+	pkgdesc = mkinitcpio preset for the Arch Colony kernel
+	pkgver = 20260820
+	pkgrel = 1
+	url = https://github.com/Project-Colony/Arch-Colony
+	arch = any
+	license = GPL-3.0-or-later
+	depends = mkinitcpio
+	backup = etc/mkinitcpio.d/linux-hardened.preset
+	source = linux-hardened.preset
+	sha256sums = SKIP
+
+pkgname = colony-mkinitcpio
