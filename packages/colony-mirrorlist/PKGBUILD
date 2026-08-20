@@ -2,7 +2,7 @@
 
 pkgname=colony-mirrorlist
 pkgver=20260819
-pkgrel=2
+pkgrel=3
 pkgdesc='Arch Colony repository mirrorlist'
 arch=('any')
 url='https://github.com/Project-Colony/Arch-Colony'
