@@ -38,6 +38,17 @@ for p in "${pkgs[@]}"; do
 	shopt -u nullglob
 	(( ${#built[@]} )) || { echo "$p produced no package" >&2; exit 1; }
 
+	# Debug packages belong in a separate repository, not in the one every user
+	# installs from. Drop them rather than shipping symbols to everyone.
+	local keep=()
+	for f in "${built[@]}"; do
+		case $(basename "$f") in
+			*-debug-*) rm -f "$f" ;;
+			*) keep+=("$f") ;;
+		esac
+	done
+	built=("${keep[@]}")
+
 	for f in "${built[@]}"; do
 		echo "==> signing $(basename "$f")"
 		gpg --detach-sign --no-armor --local-user "$COLONY_SIGNING_KEY" --yes "$f"

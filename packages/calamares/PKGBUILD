@@ -1,0 +1,75 @@
+# Maintainer: MotherSphere <linhajahad@gmail.com>
+# Based on the AUR package by Rustmilian <Rustmilian@proton.me>
+#
+# Calamares is not in Arch's repositories — not in core, extra, multilib, nor in
+# chaotic-aur — so Arch Colony packages it. It does not exist upstream, so this does
+# not violate ADR-0002. See the 2026-08-20 amendment to ADR-0006 for the standing
+# obligation this creates: Calamares is a Qt6/KF6 application and Arch's Qt and KDE
+# Frameworks updates will periodically break it, each time requiring a rebuild here
+# before an ISO can be produced again.
+
+pkgname=calamares
+pkgver=3.4.2
+pkgrel=1
+pkgdesc='Distribution-independent installer framework'
+arch=('x86_64')
+url='https://codeberg.org/Calamares/calamares'
+license=('GPL-3.0-or-later')
+depends=(
+	'kcoreaddons'
+	'kpmcore'
+	'libpwquality'
+	'qt6-declarative'
+	'qt6-svg'
+	'yaml-cpp'
+)
+makedepends=(
+	'cmake'
+	'extra-cmake-modules'
+	'libglvnd'
+	'ninja'
+	'qt6-tools'
+	'qt6-translations'
+)
+source=("$pkgname-$pkgver.tar.gz::$url/releases/download/v$pkgver/$pkgname-$pkgver.tar.gz")
+sha256sums=('733bbbb00dc9f84874bd5c22960952f317ea2537565431179fa2152b2fbfdccc')
+
+build() {
+	# Modules for other init systems, other initramfs generators, and the demo
+	# modules. Arch Colony is systemd + mkinitcpio, and the mkinitcpio module is
+	# deliberately NOT skipped.
+	local _skip_modules=(
+		dracut
+		dracutlukscfg
+		dummycpp
+		dummyprocess
+		dummypython
+		dummypythonqt
+		initramfs
+		initramfscfg
+		interactiveterminal
+		services-openrc
+	)
+
+	local _cmake_options=(
+		-B build
+		-S "$srcdir/$pkgname-$pkgver"
+		-G Ninja
+		-DCMAKE_BUILD_TYPE=Release
+		-DCMAKE_INSTALL_PREFIX='/usr'
+		-DCMAKE_INSTALL_LIBDIR='lib'
+		-DWITH_QT6=ON
+		-DINSTALL_CONFIG=ON
+		-DSKIP_MODULES="${_skip_modules[*]}"
+		-DBUILD_TESTING=OFF
+		-DKDE_INSTALL_SYSCONFDIR=/etc
+		-Wno-dev
+	)
+
+	cmake "${_cmake_options[@]}"
+	cmake --build build
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
