@@ -1,0 +1,116 @@
+diff --git a/src/libcalamaresui/widgets/ErrorDialog.cpp b/src/libcalamaresui/widgets/ErrorDialog.cpp
+index 8c682f9..116a4c4 100644
+--- a/src/libcalamaresui/widgets/ErrorDialog.cpp
++++ b/src/libcalamaresui/widgets/ErrorDialog.cpp
+@@ -11,8 +11,13 @@
+ #include "ui_ErrorDialog.h"
+ 
+ #include "widgets/TranslationFix.h"
++
++#include "utils/Logger.h"
++
+ #include <QDialogButtonBox>
++#include <QFile>
+ #include <QIcon>
++#include <QStringList>
+ 
+ namespace Calamares
+ {
+@@ -25,6 +30,50 @@ ErrorDialog::ErrorDialog( QWidget* parent )
+     ui->iconLabel->setPixmap( QIcon::fromTheme( "dialog-error" ).pixmap( 64 ) );
+     ui->detailsWidget->hide();
+     ui->offerWebPasteLabel->hide();
++
++    // ActionRole, so pressing it does not close the dialog.
++    m_logButton = ui->buttonBox->addButton( tr( "Show log", "@button" ), QDialogButtonBox::ActionRole );
++    connect( m_logButton, &QPushButton::clicked, this, &ErrorDialog::showLogTail );
++}
++
++void
++ErrorDialog::appendDetails( const QString& text )
++{
++    // detailsBrowser is a QTextBrowser, so append() would interpret its argument
++    // as rich text — exactly wrong for a log, which is full of angle brackets and
++    // ampersands. Going through plain text keeps it verbatim.
++    const QString existing = ui->detailsBrowser->toPlainText();
++    ui->detailsBrowser->setPlainText( existing.isEmpty() ? text : existing + QLatin1Char( '\n' ) + text );
++}
++
++void
++ErrorDialog::showLogTail()
++{
++    static constexpr int c_tailLines = 200;
++
++    QFile log( Logger::logFile() );
++    if ( !log.open( QIODevice::ReadOnly | QIODevice::Text ) )
++    {
++        appendDetails( tr( "Could not read the log at %1", "@info" ).arg( Logger::logFile() ) );
++        ui->detailsWidget->show();
++        return;
++    }
++
++    QStringList lines;
++    while ( !log.atEnd() )
++    {
++        lines.append( QString::fromUtf8( log.readLine() ).trimmed() );
++        if ( lines.size() > c_tailLines )
++        {
++            lines.removeFirst();
++        }
++    }
++
++    appendDetails( QStringLiteral( "--- %1 ---" ).arg( Logger::logFile() ) );
++    appendDetails( lines.join( QLatin1Char( '\n' ) ) );
++    ui->detailsWidget->show();
++
++    m_logButton->setEnabled( false );
+ }
+ 
+ ErrorDialog::~ErrorDialog()
+@@ -95,8 +144,12 @@ ErrorDialog::setShouldOfferWebPaste( bool newShouldOfferWebPaste )
+         m_shouldOfferWebPaste = newShouldOfferWebPaste;
+ 
+         ui->offerWebPasteLabel->setVisible( m_shouldOfferWebPaste );
++        // setStandardButtons() drops every button the box holds, including the
++        // one added above, so it has to be put back.
+         ui->buttonBox->setStandardButtons( m_shouldOfferWebPaste ? ( QDialogButtonBox::Yes | QDialogButtonBox::No )
+                                                                  : QDialogButtonBox::Close );
++        m_logButton = ui->buttonBox->addButton( tr( "Show log", "@button" ), QDialogButtonBox::ActionRole );
++        connect( m_logButton, &QPushButton::clicked, this, &ErrorDialog::showLogTail );
+         fixButtonLabels( ui->buttonBox );
+ 
+         emit shouldOfferWebPasteChanged();
+diff --git a/src/libcalamaresui/widgets/ErrorDialog.h b/src/libcalamaresui/widgets/ErrorDialog.h
+index 28ca70f..8929b23 100644
+--- a/src/libcalamaresui/widgets/ErrorDialog.h
++++ b/src/libcalamaresui/widgets/ErrorDialog.h
+@@ -11,6 +11,7 @@
+ #define LIBCALAMARESUI_ERRORDIALOG_H
+ 
+ #include <QDialog>
++#include <QPushButton>
+ 
+ namespace Ui
+ {
+@@ -74,8 +75,21 @@ signals:
+     void shouldOfferWebPasteChanged();
+ 
+ private:
++    /** @brief Append the tail of the session log to the details box.
++     *
++     * Reading the log needs no network and leaves the machine alone, unlike the
++     * web-paste button next to it. On an installer running as a kiosk — no
++     * terminal, no VT switching — this is often the only way for a user to see
++     * why an install failed, and the only way for them to report it.
++     */
++    void showLogTail();
++
++    /** @brief Append verbatim text to the details box. */
++    void appendDetails( const QString& text );
++
+     Ui::ErrorDialog* ui;
+     bool m_shouldOfferWebPaste = false;
++    QPushButton* m_logButton = nullptr;
+ };
+ 
+ }  // namespace Calamares

@@ -1,7 +1,7 @@
 pkgbase = calamares
 	pkgdesc = Distribution-independent installer framework
 	pkgver = 3.4.2
-	pkgrel = 4
+	pkgrel = 5
 	url = https://codeberg.org/Calamares/calamares
 	arch = x86_64
 	license = GPL-3.0-or-later
@@ -21,7 +21,9 @@ pkgbase = calamares
 	depends = hicolor-icon-theme
 	source = calamares-3.4.2.tar.gz::https://codeberg.org/Calamares/calamares/releases/download/v3.4.2/calamares-3.4.2.tar.gz
 	source = 0001-netinstall-add-a-search-filter.patch
+	source = 0002-errordialog-show-log-button.patch
 	sha256sums = 733bbbb00dc9f84874bd5c22960952f317ea2537565431179fa2152b2fbfdccc
+	sha256sums = SKIP
 	sha256sums = SKIP
 
 pkgname = calamares

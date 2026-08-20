@@ -1,0 +1,5 @@
+patching file src/modules/netinstall/NetInstallPage.cpp
+patching file src/modules/netinstall/NetInstallPage.h
+patching file src/modules/netinstall/page_netinst.ui
+patching file src/libcalamaresui/widgets/ErrorDialog.cpp
+patching file src/libcalamaresui/widgets/ErrorDialog.h
