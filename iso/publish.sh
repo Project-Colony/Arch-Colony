@@ -64,9 +64,13 @@ gpg --verify "$ISO.sig" "$ISO" 2>&1 | sed 's/^/    /'
 # planned, so this will matter before it is expected to.
 size=$(stat -c %s "$ISO")
 limit=$((2 * 1024 * 1024 * 1024))
-printf '    %s is %.2f GiB, %d%% of the 2 GiB asset ceiling\n' \
-	"$NAME" "$(awk -v b="$size" 'BEGIN{printf "%.2f", b/1073741824}')" \
-	"$(( size * 100 / limit ))"
+# Integer arithmetic, not awk into %.2f: awk formats with the locale's decimal
+# separator, so on a French system it hands printf "1,68" and printf rejects it —
+# non-zero exit, set -e, and the script dies just before uploading. Found the
+# hard way, on the first real run.
+gib100=$(( size * 100 / 1073741824 ))
+printf '    %s is %d.%02d GiB, %d%% of the 2 GiB asset ceiling\n' \
+	"$NAME" "$(( gib100 / 100 ))" "$(( gib100 % 100 ))" "$(( size * 100 / limit ))"
 (( size < limit )) || {
 	echo "too large for a GitHub release asset — object storage is the next step" >&2
 	exit 1; }
