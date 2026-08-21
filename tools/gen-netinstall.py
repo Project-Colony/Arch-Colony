@@ -99,6 +99,25 @@ OVERRIDES = {
 }
 
 
+# Offered from [colony], which — unlike multilib — the target's pacman.conf does
+# get, because the cleanup step appends colony-repo.conf to it. So these install.
+#
+# A short, chosen list rather than the repository's contents. calamares is the
+# installer and packages.conf removes it from the target on purpose;
+# colony-keyring, colony-mirrorlist, colony-mkinitcpio, colony-release and
+# colonyctl are already on the machine through the filesystem copy. Offering a
+# package that is installed, or one that is about to be removed, teaches people
+# not to trust the page.
+COLONY = [
+    ("Colony Firewall Control",
+     "Pare-feu par application, avec sa couche noyau eBPF. Installé mais pas activé.",
+     ["colony-firewall-control"]),
+    ("paru",
+     "Assistant AUR, pour installer depuis les dépôts communautaires",
+     ["paru"]),
+]
+
+
 def _strings(node: ast.AST, consts: dict[str, list[str]]) -> list[str] | None:
     """Flatten an expression into the strings it denotes, or None if it doesn't.
 
@@ -318,6 +337,14 @@ def main() -> None:
             "expanded": True,
             "subgroups": [
                 {"name": n, "description": d, "packages": p} for n, d, p in DRIVERS
+            ],
+        },
+        {
+            "name": "Colony",
+            "description": "Les programmes de l'écosystème, depuis le dépôt [colony]",
+            "expanded": True,
+            "subgroups": [
+                {"name": n, "description": d, "packages": p} for n, d, p in COLONY
             ],
         },
     ]

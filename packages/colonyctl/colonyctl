@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+# colonyctl — the front door to an Arch Colony system.
+#
+# It delegates. `colonyctl update` is `pacman -Syu`, and that is the whole
+# design: [colony] is an ordinary pacman repository, so Colony packages arrive
+# through pacman exactly as Arch's do. A command that did anything else would be
+# a fork wearing a derivative's clothes (ADR-0001).
+#
+# Deliberately NOT pacman's grammar. `colonyctl -Syu` would promise that -S, -R,
+# -Q and -U work too, and every gap becomes a support trap. None of the five
+# Arch derivatives surveyed imitates those flags; they all use verbs or long
+# options, and so does this.
+#
+# Deliberately thin, too. Other wrappers rewrite mirrorlists, inject --ignore,
+# auto-answer pacman's prompts, split -Syu into -Sy then -Su, or fetch and
+# execute a remote script as root. Each of those turns "my package manager
+# behaved oddly" into a question only this tool can answer. Anything that must
+# happen on upgrade belongs in an alpm hook, which fires under pacman, paru and
+# this script alike — a wrapper nobody remembers to type protects nobody.
+
+set -uo pipefail
+
+PROGRAM=${0##*/}
+VERSION=@VERSION@
+
+# NO_COLOR is honoured, and so is a non-tty: this gets piped into bug reports.
+if [[ -t 1 && -z ${NO_COLOR:-} ]]; then
+	B=$'\e[1m'; DIM=$'\e[2m'; OK=$'\e[32m'; WARN=$'\e[33m'; BAD=$'\e[31m'; R=$'\e[0m'
+else
+	B=''; DIM=''; OK=''; WARN=''; BAD=''; R=''
+fi
+
+die() { printf '%s: %s\n' "$PROGRAM" "$*" >&2; exit 1; }
+
+# Re-exec through sudo rather than requiring the whole command to be run as
+# root: it keeps $HOME and the user's paru configuration intact.
+as_root() {
+	if (( EUID == 0 )); then
+		"$@"
+	else
+		command -v sudo >/dev/null || die "not root and sudo is not installed"
+		sudo "$@"
+	fi
+}
+
+field() { printf '  %-22s %s\n' "$1" "$2"; }
+
+usage() {
+	cat <<EOF
+${B}$PROGRAM${R} — Arch Colony system control
+
+  ${B}$PROGRAM update${R} [--aur]     update the system (pacman -Syu)
+  ${B}$PROGRAM status${R}             what this machine is running, and what is protecting it
+  ${B}$PROGRAM firewall${R} <args…>   Colony Firewall Control (cfc)
+  ${B}$PROGRAM version${R}
+  ${B}$PROGRAM help${R}
+
+${DIM}pacman still works, and is not going anywhere. This is a front door, not a
+gate: [colony] is an ordinary pacman repository.${R}
+EOF
+}
+
+cmd_update() {
+	local aur=0
+	while (( $# )); do
+		case $1 in
+			--aur) aur=1 ;;
+			-h|--help) usage; return 0 ;;
+			-S*|-R*|-Q*|-U*|-y*|-u*)
+				die "$1 is pacman's grammar, not this tool's. Use '$PROGRAM update', or pacman directly."
+				;;
+			*) die "unknown option '$1' — see '$PROGRAM help'" ;;
+		esac
+		shift
+	done
+
+	# -Syu in one transaction. Never -Sy on its own, and never -Sy followed by a
+	# separate -Su: that is a partial upgrade, the one thing Arch asks everyone
+	# not to do, and wrappers reproduce it surprisingly often.
+	echo "${B}==>${R} pacman -Syu"
+	as_root pacman -Syu || return $?
+
+	if (( aur )); then
+		command -v paru >/dev/null || die "--aur needs paru: colonyctl update, then pacman -S paru"
+		echo
+		echo "${B}==>${R} paru -Sua"
+		# Not as_root: paru builds as the invoking user and asks for privilege
+		# itself. Running it as root is refused by paru anyway.
+		paru -Sua || return $?
+	fi
+}
+
+cmd_status() {
+	local v
+	echo "${B}system${R}"
+	if [[ -r /etc/os-release ]]; then
+		# shellcheck disable=SC1091
+		v=$(. /etc/os-release && printf '%s' "${PRETTY_NAME:-$NAME}")
+		field "distribution" "$v"
+	fi
+	field "kernel" "$(uname -r)"
+
+	echo
+	echo "${B}packages${R}"
+	if pacman-conf --repo-list 2>/dev/null | grep -qx colony; then
+		field "[colony]" "${OK}configured${R}"
+		# Reachability, not just configuration. A declared repository that
+		# cannot be synchronised breaks every pacman -Syu on the machine, so it
+		# is worth saying out loud before the user discovers it mid-upgrade.
+		local server
+		server=$(pacman-conf --repo=colony Server 2>/dev/null | head -n1)
+		[[ -n $server ]] && field "server" "$server"
+	else
+		field "[colony]" "${WARN}not configured${R} — Colony packages will not update"
+	fi
+	local n
+	n=$(pacman -Qq 2>/dev/null | wc -l)
+	field "installed" "$n packages"
+
+	echo
+	echo "${B}enforcement${R}"
+	# The list the kernel actually has, not the one we hoped for.
+	if [[ -r /sys/kernel/security/lsm ]]; then
+		field "kernel LSMs" "$(< /sys/kernel/security/lsm)"
+	fi
+	# Written out rather than as `test && field || field`: that chain quietly
+	# runs the second branch whenever the first command fails for its own
+	# reasons, which is a trap worth not laying in a status display.
+	if [[ -d /sys/kernel/security/apparmor ]]; then
+		field "AppArmor" "${OK}active${R}"
+	else
+		field "AppArmor" "${DIM}not active${R}"
+	fi
+	if [[ -d /sys/fs/selinux ]]; then
+		field "SELinux" "${OK}active${R}"
+	else
+		field "SELinux" "${DIM}not active${R}"
+	fi
+
+	echo
+	echo "${B}firewall${R}"
+	if ! command -v cfc >/dev/null; then
+		field "Colony Firewall" "${DIM}not installed${R} — pacman -S colony-firewall-control"
+		return 0
+	fi
+	if systemctl is-active --quiet colony-firewalld.service 2>/dev/null; then
+		field "daemon" "${OK}running${R}"
+	else
+		field "daemon" "${WARN}stopped${R}"
+	fi
+	# The kernel object is the whole reason [colony] ships its own build of CFC:
+	# the AUR package deliberately omits it, and a daemon without it filters on
+	# without its strongest layer and says so only in a log line.
+	if [[ -f /usr/lib/colony-firewall/cfc-ebpf.o ]]; then
+		field "kernel object" "${OK}present${R}"
+	else
+		field "kernel object" "${BAD}missing${R} — enforcement cannot outlive the daemon"
+	fi
+	# cfc knows its own enforcement level; ask it rather than guessing.
+	echo
+	cfc status 2>&1 | sed 's/^/  /'
+}
+
+main() {
+	(( $# )) || { usage; exit 0; }
+	local verb=$1; shift
+	case $verb in
+		update)          cmd_update "$@" ;;
+		status)          cmd_status "$@" ;;
+		firewall)
+			command -v cfc >/dev/null \
+				|| die "colony-firewall-control is not installed"
+			exec cfc "$@"
+			;;
+		version|--version) printf '%s %s\n' "$PROGRAM" "$VERSION" ;;
+		help|-h|--help)  usage ;;
+		-*)
+			die "'$verb' looks like pacman's grammar. This tool takes verbs — see '$PROGRAM help'."
+			;;
+		*) die "unknown command '$verb' — see '$PROGRAM help'" ;;
+	esac
+}
+
+main "$@"

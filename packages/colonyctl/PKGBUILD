@@ -1,0 +1,42 @@
+# Maintainer: MotherSphere <linhajahad@gmail.com>
+#
+# The front door to an Arch Colony system. A dispatcher over pacman and cfc,
+# not a replacement for either.
+#
+# The name is not `colony`: that binary belongs to the ecosystem's application
+# launcher, whose package declares `provides=colony` and `conflicts=colony`, so
+# a package by that name here would make the launcher uninstallable and break
+# the J3 desktop. `colonyctl` follows systemd's convention — systemctl,
+# hostnamectl, machinectl — and was verified free in core/extra/multilib, in the
+# official file database, in the AUR, and across the Colony ecosystem.
+
+pkgname=colonyctl
+pkgver=20260821
+pkgrel=1
+pkgdesc='Arch Colony system control — updates, status, and the Colony firewall'
+arch=('any')
+url='https://github.com/Project-Colony/Arch-Colony'
+license=('GPL-3.0-or-later')
+depends=(
+	'bash'
+	# pacman-conf, which `status` uses to answer "is [colony] actually
+	# configured" rather than guessing from a file it parsed itself.
+	'pacman'
+)
+optdepends=(
+	'colony-firewall-control: colonyctl firewall, and the firewall section of colonyctl status'
+	'paru: colonyctl update --aur'
+	'sudo: run colonyctl update as a normal user'
+)
+source=('colonyctl')
+sha256sums=('SKIP')
+
+prepare() {
+	# The version is stamped rather than duplicated: a number that lives in two
+	# places is a number that will disagree with itself.
+	sed -i "s/@VERSION@/$pkgver-$pkgrel/" colonyctl
+}
+
+package() {
+	install -Dm755 colonyctl "$pkgdir/usr/bin/colonyctl"
+}

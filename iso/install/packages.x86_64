@@ -16,6 +16,7 @@ colony-keyring
 colony-mirrorlist
 colony-mkinitcpio
 colony-release
+colonyctl
 cryptsetup
 darkhttpd
 ddrescue

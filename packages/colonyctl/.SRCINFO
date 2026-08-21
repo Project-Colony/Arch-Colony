@@ -1,0 +1,16 @@
+pkgbase = colonyctl
+	pkgdesc = Arch Colony system control — updates, status, and the Colony firewall
+	pkgver = 20260821
+	pkgrel = 1
+	url = https://github.com/Project-Colony/Arch-Colony
+	arch = any
+	license = GPL-3.0-or-later
+	depends = bash
+	depends = pacman
+	optdepends = colony-firewall-control: colonyctl firewall, and the firewall section of colonyctl status
+	optdepends = paru: colonyctl update --aur
+	optdepends = sudo: run colonyctl update as a normal user
+	source = colonyctl
+	sha256sums = SKIP
+
+pkgname = colonyctl
