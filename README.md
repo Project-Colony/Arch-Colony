@@ -14,14 +14,14 @@ signés par Arch, à la vitesse d'Arch.
 
 ## Télécharger
 
-[**archcolony-2026.08.21-x86_64.iso**](https://github.com/Project-Colony/Arch-Colony/releases/tag/iso-2026.08.21) — 1,7 Go
+[**archcolony-2026.08.22-x86_64.iso**](https://github.com/Project-Colony/Arch-Colony/releases/tag/iso-2026.08.22) — 1,7 Go
 
 Vérifier avant de l'écrire sur quoi que ce soit. La somme de contrôle attrape un
 téléchargement corrompu ; c'est la signature qui dit que l'image vient bien de nous.
 
 ```sh
-gpg --verify archcolony-2026.08.21-x86_64.iso.sig archcolony-2026.08.21-x86_64.iso
-sha256sum -c archcolony-2026.08.21-x86_64.iso.sha256
+gpg --verify archcolony-2026.08.22-x86_64.iso.sig archcolony-2026.08.22-x86_64.iso
+sha256sum -c archcolony-2026.08.22-x86_64.iso.sha256
 ```
 
 La clé est celle du paquet `colony-keyring`, empreinte
