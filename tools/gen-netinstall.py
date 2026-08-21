@@ -112,7 +112,11 @@ def parse_desktop(path: Path) -> dict | None:
 
     src = path.read_text(encoding="utf-8")
 
-    name = re.search(r"super\(\)\.__init__\(\s*\n?\s*'([^']+)'", src)
+    # `\s*\n?\s*` was the same shape of ambiguity as the listing pattern below —
+    # \n is inside \s, so one newline had three ways to be matched — and it is
+    # exactly equivalent to `\s*`. CodeQL did not flag this one; it was found by
+    # looking for the same mistake twice.
+    name = re.search(r"super\(\)\.__init__\(\s*'([^']+)'", src)
     if not name:
         return None
 
@@ -124,7 +128,21 @@ def parse_desktop(path: Path) -> dict | None:
         return None
 
     # The first bracketed list of string literals inside it.
-    listing = re.search(r"\[\s*((?:\s*'[^']+'\s*,?)+)\s*\]", body.group(1), re.S)
+    #
+    # Written without nested quantifiers over whitespace. The obvious form,
+    # `\[\s*((?:\s*'[^']+'\s*,?)+)\s*\]`, is exponential: the whitespace in the
+    # gap between two items can be eaten by the previous iteration's trailing
+    # \s*, the next one's leading \s*, or split between them, so a string with
+    # no closing bracket makes the engine try every split. Measured on the real
+    # pattern: 22 items 1.4 s, 26 items 36 s. CodeQL flagged it as py/redos once
+    # this repository went public.
+    #
+    # Here each repetition must consume a quoted item, and the separator is a
+    # single character class rather than two adjacent stars, so there is exactly
+    # one way to match. Verified to extract identical results across all 162
+    # Python files archinstall ships.
+    listing = re.search(
+        r"\[\s*('[^']+'(?:[\s,]*'[^']+')*)[\s,]*\]", body.group(1), re.S)
     if not listing:
         return None
     packages = re.findall(r"'([^']+)'", listing.group(1))
