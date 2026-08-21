@@ -1,5 +1,5 @@
+colony-firewall-control W: Dependency libgcc detected and implicitly satisfied (libraries ['usr/lib/libgcc_s.so.1'] needed in files ['usr/bin/colony-firewalld', 'usr/bin/cfc', 'usr/bin/colony-firewall-tray', 'usr/bin/colony-firewall'])
 colony-firewall-control W: Dependency bash detected and implicitly satisfied (programs ['sh'] needed in scripts ['usr/lib/colony-firewall/inbound-lockout-guard.sh'])
-colony-firewall-control W: Dependency libgcc detected and implicitly satisfied (libraries ['usr/lib/libgcc_s.so.1'] needed in files ['usr/bin/colony-firewalld', 'usr/bin/colony-firewall-tray', 'usr/bin/cfc', 'usr/bin/colony-firewall'])
 colony-firewall-control W: Dependency included, but may not be needed ('gcc-libs')
 colony-firewall-control W: Dependency included, but may not be needed ('nftables')
 colony-firewall-control W: Dependency included, but may not be needed ('libxkbcommon')

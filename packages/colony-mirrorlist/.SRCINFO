@@ -1,7 +1,7 @@
 pkgbase = colony-mirrorlist
 	pkgdesc = Arch Colony repository mirrorlist
 	pkgver = 20260819
-	pkgrel = 3
+	pkgrel = 4
 	url = https://github.com/Project-Colony/Arch-Colony
 	arch = any
 	license = GPL-3.0-or-later
