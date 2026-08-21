@@ -19,8 +19,13 @@ Colony Firewall Control is installed but not running.
   Kernel layer:  /usr/lib/colony-firewall/cfc-ebpf.o
                  `cfc status` reports which enforcement level is actually live.
 
-  To start it:   cfc rules bootstrap-defaults   # DNS, NTP, DHCP, pacman, ssh
-                 systemctl enable --now colony-firewalld colony-firewall-nft
+  To start it:   systemctl enable --now colony-firewalld colony-firewall-nft
+                 cfc rules bootstrap-defaults   # DNS, NTP, DHCP, pacman, ssh
+
+                 In that order. Every cfc subcommand opens the daemon socket
+                 first, so seeding rules before the daemon runs fails on a
+                 missing /run/colony-firewall/cfc.sock and seeds nothing —
+                 leaving the fail-closed chain loaded with no rules at all.
 
   To use the UI: usermod -aG colony-firewall <user>   # then log out and back in
 
@@ -48,8 +53,14 @@ Load the new one when convenient:
 
   systemctl restart colony-firewalld.service
 
-Enforcement is not interrupted by this: the pinned programs keep refusing
-while the daemon is down.
+That restart is not free, so pick the moment. colony-firewall-nft.service is
+PartOf= the daemon, so systemd propagates the restart to it, and its ExecStop
+deletes 'table inet colony_firewall' before it is re-added. For that window
+there is no NFQUEUE chain: a new outbound flow that the pinned eBPF maps have
+no verdict for goes out unfiltered and unprompted.
+
+What does survive is the pinned layer — anything the kernel already has a
+verdict for keeps being refused while the daemon is down.
 
 EOF
 	fi

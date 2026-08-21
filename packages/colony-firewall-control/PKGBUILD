@@ -82,24 +82,37 @@ _srcname="Colony-Firewall-Control-$pkgver"
 prepare() {
 	cd "$_srcname"
 
+	# This goes FIRST, before any cargo runs with that directory as its cwd.
+	# Upstream pins nightly-2026-07-01 in crates/cfc-ebpf/rust-toolchain.toml,
+	# rustup resolves that file by walking up from the working directory, and its
+	# shim auto-installs whatever it finds. Fetching before removing it therefore
+	# downloads the pinned nightly plus rust-src on any machine that has rustup —
+	# some 300 MB, and exactly the pin the header above explains we refuse to
+	# depend on. In a chroot with no rustup the file is inert either way, which is
+	# what made this ordering easy to get wrong and impossible to notice here.
+	rm -f crates/cfc-ebpf/rust-toolchain.toml
+
 	# Two lockfiles, two fetches. crates/cfc-ebpf declares its own [workspace]
 	# and is listed under `exclude` in the root manifest, so the root fetch below
-	# never reaches aya-ebpf. Without the second fetch, build() would need the
-	# network — which the chroot does not have.
+	# never reaches aya-ebpf.
 	cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
 
-	# The kernel crate fetches for its own target, taken from its
-	# .cargo/config.toml (bpfel-unknown-none).
-	cd crates/cfc-ebpf
-	cargo fetch --locked
-
-	# Upstream pins nightly-2026-07-01 here. rustup resolves rust-toolchain.toml
-	# by walking up from the cwd, so in a chroot with no rustup the file is
-	# already inert — but a developer running makepkg on a machine that HAS
-	# rustup would silently get a different compiler than the chroot does, and
-	# the two would disagree about LLVM. Removing it makes the toolchain the
-	# same everywhere this is built.
-	rm -f rust-toolchain.toml
+	# RUSTC_BOOTSTRAP belongs HERE too, not only in build(). The kernel crate's
+	# .cargo/config.toml carries `[unstable] build-std = ["core"]`, and a stable
+	# cargo ignores the entire [unstable] table in silence — exit 0, no warning.
+	# Without it this fetch resolves aya-ebpf and none of the standard library,
+	# so build() reaches out to crates.io for libc, memchr, compiler_builtins and
+	# the rest of library/Cargo.lock.
+	#
+	# That is not hypothetical: this package's own build log shows eight
+	# downloads beginning *after* the userspace workspace had finished compiling.
+	# It worked only because a devtools chroot has network. Arch packaging expects
+	# the network in prepare() and not in build(), and an isolated rebuilder would
+	# have died five and a half minutes into an otherwise useful build.
+	(
+		cd crates/cfc-ebpf
+		RUSTC_BOOTSTRAP=1 cargo fetch --locked
+	)
 }
 
 build() {
@@ -196,7 +209,18 @@ check() {
 	# Dev profile on purpose: the release profile sets panic=abort, which the
 	# libtest harness cannot use. Upstream made the same fix on their branch
 	# after their main-branch check() failed for exactly this reason.
-	cargo test --workspace --locked --no-fail-fast
+	#
+	# One test is skipped, and only one. Every test needing root, BPF, /sys or a
+	# package manager is already #[ignore]d upstream, but
+	# sock_diag::live_query_finds_own_udp_socket is not: it binds a UDP socket
+	# and asserts a real NETLINK_SOCK_DIAG round trip returns an inode. That
+	# asserts a kernel feature, not this package. A builder whose kernel has no
+	# loadable udp_diag — CONFIG_INET_UDP_DIAG absent, modules_disabled=1, or a
+	# container that blocks netlink autoload — could not build the package at
+	# all, for a condition the daemon itself treats as supported degradation
+	# ("sock_diag socket unavailable; falling back to /proc").
+	cargo test --workspace --locked --no-fail-fast -- \
+		--skip live_query_finds_own_udp_socket
 }
 
 package_colony-firewall-control() {

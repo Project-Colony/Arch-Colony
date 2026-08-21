@@ -1,0 +1,33 @@
+pkgbase = colony-firewall-control
+	pkgver = 0.2.0
+	pkgrel = 1
+	url = https://github.com/Project-Colony/Colony-Firewall-Control
+	arch = x86_64
+	license = GPL-3.0-or-later
+	makedepends = rust
+	makedepends = rust-src
+	makedepends = bpf-linker
+	makedepends = protobuf
+	options = !lto
+	source = colony-firewall-control-0.2.0.tar.gz::https://github.com/Project-Colony/Colony-Firewall-Control/archive/refs/tags/v0.2.0.tar.gz
+	sha256sums = 48fb4bb59bf0e9b3c7a9edb6e25d6bed92aa29f6dc502ed3894c7959b5e0d338
+
+pkgname = colony-firewall-control
+	pkgdesc = Per-application firewall for Colony — daemon, CLI and UI
+	install = colony-firewall-control.install
+	depends = gcc-libs
+	depends = glibc
+	depends = nftables
+	depends = libxkbcommon
+	depends = wayland
+	depends = hicolor-icon-theme
+	depends = colony-firewall-control-ebpf=0.2.0-1
+	optdepends = libnotify: desktop notifications on new prompts
+	optdepends = libx11: run the GUI in X11/XWayland sessions
+	backup = etc/colony-firewall/daemon.toml
+
+pkgname = colony-firewall-control-ebpf
+	pkgdesc = Colony Firewall Control — kernel-side eBPF object
+	options = !strip
+	options = !debug
+	options = !lto
