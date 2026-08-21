@@ -41,8 +41,12 @@ La clé est celle du paquet `colony-keyring`, empreinte
 | **J3** | ⏳ | le bureau et l'identité visuelle |
 
 Ce que le dépôt sert aujourd'hui : `calamares`, `colonyctl`, `colony-firewall-control`
-et sa couche noyau eBPF, `colony-keyring`, `colony-mirrorlist`, `colony-mkinitcpio`,
-`colony-release`, `paru`.
+et sa couche noyau eBPF, `colony-firewall-defaults`, `colony-keyring`, `colony-mirrorlist`,
+`colony-mkinitcpio`, `colony-release`, `paru`.
+
+Le pare-feu s'installe et s'active tout seul : le démon, puis les douze règles système —
+DNS, DHCP, NTP, pacman, ssh — puis seulement la table de filtrage. L'ordre est imposé par
+systemd, parce que l'inverse donne une machine qui ressemble à une panne réseau.
 
 Sur une machine installée, `[colony]` est déjà configuré — les paquets Colony arrivent par
 `pacman -Syu` comme ceux d'Arch. `colonyctl status` dit ce qui tourne et ce qui protège.
