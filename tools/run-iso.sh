@@ -14,7 +14,16 @@ set -euo pipefail
 ROOT="$(realpath "$(dirname "$(realpath "$0")")/..")"
 PROFILE="${1:-install}"
 FIRMWARE="${2:-uefi}"
-DISK="${COLONY_TEST_DISK:-/tmp/colony-target.qcow2}"
+# Not /tmp. On Arch /tmp is tmpfs, so a completed installation — the artefact
+# that took an hour of clicking through Calamares and answering firewall prompts
+# — is gone the next time the host reboots. That is exactly what happened on
+# 2026-08-21, and the disk was already an hour old.
+#
+# ~/.cache is the right shelf for it: persistent, per-user, outside the
+# repository, and something a person can delete on purpose without being told to.
+STATE="${XDG_CACHE_HOME:-$HOME/.cache}/arch-colony"
+mkdir -p "$STATE"
+DISK="${COLONY_TEST_DISK:-$STATE/colony-target.qcow2}"
 DISK_SIZE="${COLONY_TEST_DISK_SIZE:-20G}"
 
 case "$PROFILE" in
@@ -48,7 +57,7 @@ args=(
 
 if [[ $FIRMWARE == uefi ]]; then
 	CODE=/usr/share/edk2/x64/OVMF_CODE.4m.fd
-	VARS=/tmp/colony-OVMF_VARS.fd
+	VARS="$STATE/colony-OVMF_VARS.fd"
 	[[ -f $CODE ]] || { echo "OVMF missing: pacman -S edk2-ovmf" >&2; exit 1; }
 	cp -f /usr/share/edk2/x64/OVMF_VARS.4m.fd "$VARS"
 	args+=(-drive "if=pflash,format=raw,readonly=on,file=$CODE"

@@ -8,8 +8,11 @@
 
 set -euo pipefail
 
-DISK="${COLONY_TEST_DISK:-/tmp/colony-target.qcow2}"
-VARS=/tmp/colony-OVMF_VARS.fd
+# Matches tools/run-iso.sh: not /tmp, which is tmpfs here and takes a completed
+# installation with it at the next reboot of the host.
+STATE="${XDG_CACHE_HOME:-$HOME/.cache}/arch-colony"
+DISK="${COLONY_TEST_DISK:-$STATE/colony-target.qcow2}"
+VARS="$STATE/colony-OVMF_VARS.fd"
 CODE=/usr/share/edk2/x64/OVMF_CODE.4m.fd
 
 [[ -f $DISK ]] || { echo "no target disk at $DISK — run tools/run-iso.sh and install first" >&2; exit 1; }
