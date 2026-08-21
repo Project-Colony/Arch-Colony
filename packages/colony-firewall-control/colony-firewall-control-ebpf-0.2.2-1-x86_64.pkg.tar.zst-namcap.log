@@ -1,0 +1,3 @@
+colony-firewall-control-ebpf W: ELF file ('usr/lib/colony-firewall/cfc-ebpf.o') lacks FULL RELRO, check LDFLAGS.
+colony-firewall-control-ebpf W: ELF file ('usr/lib/colony-firewall/cfc-ebpf.o') is unstripped.
+colony-firewall-control-ebpf W: ELF file ('usr/lib/colony-firewall/cfc-ebpf.o') lacks PIE.
