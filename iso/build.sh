@@ -122,10 +122,41 @@ if [[ -f "$STAGE/airootfs/etc/calamares/modules/netinstall.conf" ]]; then
 fi
 
 echo "==> mkarchiso ($PROFILE)"
+# A marker to tell this run's image from any older one left in iso/out. Globbing
+# *.iso and signing whatever matches would re-sign, and re-publish, images built
+# from a tree nobody remembers.
+MARKER="$WORK/.build-started"
+: > "$MARKER"
 sudo mkarchiso -v -w "$WORK/work" -o "$DEST" "$STAGE"
 
-echo
-echo "Built:"
+shopt -s nullglob
+fresh=()
 for f in "$DEST"/*.iso; do
-	[[ -e $f ]] && printf '    %s  (%s)\n' "$(basename "$f")" "$(du -h "$f" | cut -f1)"
+	[[ $f -nt $MARKER ]] && fresh+=("$f")
 done
+shopt -u nullglob
+(( ${#fresh[@]} )) || { echo "mkarchiso reported success but produced no image" >&2; exit 1; }
+
+# Sign the image, and say so in a checksum file signed alongside it.
+#
+# Every package in [colony] is signed and pacman refuses unsigned ones, which
+# makes it odd to hand someone an unsigned ISO — the first artefact they touch,
+# the one they write to a USB stick, and the one with no package manager behind
+# it to check anything. `sha256sum -c` catches a corrupted download; only the
+# signature says the image is ours.
+echo
+echo "==> signing"
+for f in "${fresh[@]}"; do
+	name=$(basename "$f")
+	( cd "$DEST" && sha256sum "$name" > "$name.sha256" )
+	gpg --detach-sign --no-armor --local-user "$COLONY_SIGNING_KEY" --yes "$f"
+	gpg --detach-sign --no-armor --local-user "$COLONY_SIGNING_KEY" --yes "$f.sha256"
+	printf '    %-46s %s\n' "$name" "$(du -h "$f" | cut -f1)"
+	printf '    %-46s %s\n' "$name.sig" "signature"
+	printf '    %-46s %s\n' "$name.sha256" "checksum, signed"
+done
+
+echo
+echo "Verify, on any machine that trusts the Colony key:"
+echo "    gpg --verify $(basename "${fresh[0]}").sig"
+echo "    sha256sum -c $(basename "${fresh[0]}").sha256"
