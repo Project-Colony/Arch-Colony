@@ -1,0 +1,341 @@
+# Maintainer: MotherSphere <linhajahad@gmail.com>
+#
+# Colony Firewall Control, packaged for [colony] WITH its kernel layer.
+#
+# Upstream's own pkg/PKGBUILD deliberately does not build the eBPF object. Its
+# reasoning is sound for the AUR — on Arch, `rustup` conflicts with `rust`, so a
+# rust-toolchain.toml pinning a nightly is inert and `-Z build-std` fails on
+# stable — but the consequence is a daemon that starts, reports itself healthy,
+# and runs in Degrade::ObjectMissing: no connect4/connect6 cgroup hooks, no
+# sched_process_exec tracking, no DNS capture. Attribution falls back to
+# sock_diag + /proc, and the property that makes CFC worth shipping — enforcement
+# that survives the daemon dying, because the verdicts live in pinned BPF maps
+# the kernel evaluates alone — is simply absent. `[ebpf] enabled = "auto"` makes
+# that a log note rather than an error, so the machine boots looking fine.
+#
+# That is unacceptable for the distribution CFC is the reason for. So this
+# package builds the object, from source, in the clean chroot, using only
+# packages from [core] and [extra].
+#
+# The trick is RUSTC_BOOTSTRAP=1, documented in bpf-linker's own BUILDING.md
+# under "With Rust stable" and implemented natively by aya-build: it unlocks
+# both `-Z build-std=core` (bpfel-unknown-none is tier 3 and ships no core) and
+# the `asm_experimental_arch` feature gate aya-ebpf turns on for target_arch =
+# "bpf". Measured 2026-08-21 against the real crates/cfc-ebpf: five programs
+# (connect4, connect6, cgroup_skb/ingress, sched_process_exec,
+# sched_process_exit) with .BTF and .BTF.ext, built by a stable rustc.
+#
+# What this deliberately does NOT do is pin a dated nightly, which is what
+# upstream's rust-toolchain.toml asks for. That pin fails the ADR-0002 test:
+# it anchors a FIXED rustc date against Arch's ROLLING system LLVM, so the day
+# Arch moves llvm-libs forward, a routine `pacman -Syu` breaks an Arch Colony
+# build that would never have broken a plain Arch machine. Arch's own rustc and
+# bpf-linker are both linked against the same llvm-libs and upgraded in the same
+# transaction, which is precisely the pairing bpf-linker's README endorses.
+#
+# See ADR-0010.
+
+pkgbase=colony-firewall-control
+pkgname=('colony-firewall-control' 'colony-firewall-control-ebpf')
+pkgver=0.2.0
+pkgrel=1
+arch=('x86_64')
+url='https://github.com/Project-Colony/Colony-Firewall-Control'
+license=('GPL-3.0-or-later')
+# !lto is not a preference, it is required for this package to link at all.
+#
+# Arch's makepkg.conf enables LTO globally, which puts -flto=auto into CFLAGS.
+# rusqlite is built with the `bundled` feature, so libsqlite3-sys compiles
+# sqlite3.c through the cc crate — and with -flto=auto that produces an archive
+# full of GCC LTO bitcode rather than native objects. rustc then links with
+# ld.lld, which cannot read GCC's bitcode, so every sqlite3_* symbol comes back
+# undefined even though libsqlite3.a was built correctly and
+# `cargo:rustc-link-lib=static=sqlite3` was emitted.
+#
+# Measured, not guessed: the first clean-chroot build failed exactly this way,
+# with libsqlite3.a present in the build directory the whole time.
+#
+# This also means upstream's own pkg/PKGBUILD cannot build in a clean chroot —
+# it works on a developer machine only because makepkg is usually run there
+# with a warm target dir or without LTO.
+options=('!lto')
+makedepends=(
+	# `rust` provides cargo. rust-src is a SEPARATE package, versioned in
+	# lock-step with rust, and it is what -Z build-std rebuilds core from.
+	'rust'
+	'rust-src'
+	# In [extra] since 2026-08-14. Not an AUR dependency, and not optional:
+	# rustc's bpfel-unknown-none target spec defaults to it as the linker.
+	'bpf-linker'
+	# protoc, for the cfc-proto crate.
+	'protobuf'
+)
+source=("$pkgbase-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+# The real digest of the v0.2.0 tag, not a placeholder. Upstream's own
+# pkg/PKGBUILD carries sha256sums=('SKIP') and its README says that must never
+# be published — a repository that signs its packages has no business skipping
+# the check on what went into them.
+sha256sums=('48fb4bb59bf0e9b3c7a9edb6e25d6bed92aa29f6dc502ed3894c7959b5e0d338')
+
+_srcname="Colony-Firewall-Control-$pkgver"
+
+prepare() {
+	cd "$_srcname"
+
+	# Two lockfiles, two fetches. crates/cfc-ebpf declares its own [workspace]
+	# and is listed under `exclude` in the root manifest, so the root fetch below
+	# never reaches aya-ebpf. Without the second fetch, build() would need the
+	# network — which the chroot does not have.
+	cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+
+	# The kernel crate fetches for its own target, taken from its
+	# .cargo/config.toml (bpfel-unknown-none).
+	cd crates/cfc-ebpf
+	cargo fetch --locked
+
+	# Upstream pins nightly-2026-07-01 here. rustup resolves rust-toolchain.toml
+	# by walking up from the cwd, so in a chroot with no rustup the file is
+	# already inert — but a developer running makepkg on a machine that HAS
+	# rustup would silently get a different compiler than the chroot does, and
+	# the two would disagree about LLVM. Removing it makes the toolchain the
+	# same everywhere this is built.
+	rm -f rust-toolchain.toml
+}
+
+build() {
+	cd "$_srcname"
+
+	# bpfel-unknown-none sets obj-is-bitcode: rustc hands bpf-linker raw LLVM
+	# bitcode rather than an object. If the two disagree about LLVM, one of two
+	# things happens — a hard "Invalid record" link error, or, and this is the
+	# one that matters, a SUCCESSFUL link with silently broken BTF. bpf-linker
+	# does not check (aya-rs/bpf-linker#321 is still open), cargo does not check,
+	# and nothing appears in the build log. Broken BTF means broken CO-RE, which
+	# means the kernel layer loads and misbehaves instead of failing loudly.
+	#
+	# On a normal Arch box these two are the same libLLVM by construction. This
+	# asserts it anyway, because the cost of being wrong is a firewall that
+	# believes it is enforcing.
+	local _rustc_llvm _linker_llvm
+	_rustc_llvm=$(rustc -vV | sed -n 's/^LLVM version: \([0-9]\+\).*/\1/p')
+	_linker_llvm=$(ldd "$(command -v bpf-linker)" |
+		sed -n 's/.*libLLVM\.so\.\([0-9]\+\).*/\1/p' | head -n1)
+	if [[ -z $_rustc_llvm || -z $_linker_llvm ]]; then
+		echo "cannot determine LLVM versions (rustc='$_rustc_llvm' bpf-linker='$_linker_llvm')" >&2
+		return 1
+	fi
+	if [[ $_rustc_llvm != "$_linker_llvm" ]]; then
+		echo "LLVM mismatch: rustc has $_rustc_llvm, bpf-linker links $_linker_llvm." >&2
+		echo "Linking would appear to succeed and produce silently invalid BTF." >&2
+		echo "Rebuild bpf-linker against the current llvm-libs before continuing." >&2
+		return 1
+	fi
+	echo "==> rustc and bpf-linker agree on LLVM $_rustc_llvm"
+
+	# Userspace. --locked, not --frozen: prepare() has warmed the cache, and
+	# --frozen additionally forbids cargo from touching the lockfile at all,
+	# which trips on the second workspace.
+	export CARGO_TARGET_DIR=target
+	cargo build --workspace --profile release --locked
+
+	# Kernel side. Its .cargo/config.toml supplies the target and
+	# -Z build-std=core, but NOT the rustflags — those have to be forced here,
+	# and the reason is a trap worth spelling out.
+	#
+	# devtools ships its own /usr/share/devtools/makepkg.conf.d/conf.d/rust.conf
+	# with RUSTFLAGS="-C force-frame-pointers=yes -C link-arg=-Wl,--icf=safe".
+	# Cargo gives an environment RUSTFLAGS absolute precedence: it REPLACES
+	# target.<triple>.rustflags from .cargo/config.toml rather than merging with
+	# it. So inside a clean chroot the crate's own flags are silently discarded
+	# and the host's are handed to bpf-linker instead.
+	#
+	# The visible symptom is a hard error — bpf-linker rejects '-W'. The
+	# invisible one is worse, and is what this override actually guards against:
+	# with --icf dropped but the flags still overridden, the object would link
+	# and ship WITHOUT .BTF, because --btf is what turns the DWARF that
+	# `debug = 2` produces into the .BTF/.BTF.ext sections. A BTF-less object
+	# loads and then resolves every kernel field to the wrong offset.
+	#
+	# --disable-expand-memcpy-in-order is equally non-optional: bpf-linker
+	# passes -bpf-expand-memcpy-in-order to LLVM by default, which sets
+	# MaxStoresPerMemset to zero and turns even a 16-byte [0u8; 16] into a
+	# memset libcall the BPF backend cannot lower.
+	#
+	# CARGO_TARGET_DIR is unset for a duller reason: it would drag the BPF
+	# artifacts into the workspace target dir and break the paths below.
+	(
+		cd crates/cfc-ebpf
+		unset CARGO_TARGET_DIR
+		# --remap-path-prefix is carried over deliberately. Replacing RUSTFLAGS
+		# also discards the one makepkg adds through DEBUG_RUSTFLAGS, and the
+		# object keeps full DWARF (debug = 2 is what --btf derives BTF from,
+		# and !strip keeps it), so without this the build directory is baked
+		# into the shipped file — five occurrences, and a namcap warning that
+		# the userspace binaries do not get because they still see makepkg's.
+		env -u CARGO_ENCODED_RUSTFLAGS \
+			RUSTFLAGS="-C link-arg=--btf -C link-arg=--disable-expand-memcpy-in-order --remap-path-prefix=$srcdir=/usr/src/debug/$pkgbase" \
+			RUSTC_BOOTSTRAP=1 \
+			cargo build --release --locked
+	)
+
+	# Assert what the flags above exist to produce. Everything that can go wrong
+	# with this object goes wrong quietly: a dropped rustflag, a mismatched
+	# LLVM, a future devtools change. .BTF present is the one cheap check that
+	# distinguishes a working CO-RE object from one that loads and misbehaves.
+	local _obj=crates/cfc-ebpf/target/bpfel-unknown-none/release/cfc-ebpf
+	if ! readelf -S --wide "$_obj" | grep -q '\.BTF'; then
+		echo "the eBPF object carries no .BTF section — CO-RE would resolve" >&2
+		echo "every kernel field to the wrong offset. Refusing to package it." >&2
+		return 1
+	fi
+	echo "==> eBPF object has .BTF; $(readelf -S --wide "$_obj" | grep -c '\.BTF') matching sections"
+}
+
+check() {
+	cd "$_srcname"
+	# Dev profile on purpose: the release profile sets panic=abort, which the
+	# libtest harness cannot use. Upstream made the same fix on their branch
+	# after their main-branch check() failed for exactly this reason.
+	cargo test --workspace --locked --no-fail-fast
+}
+
+package_colony-firewall-control() {
+	pkgdesc='Per-application firewall for Colony — daemon, CLI and UI'
+	depends=(
+		'gcc-libs'
+		'glibc'
+		# /usr/bin/nft is required by colony-firewall-nft.service and by the
+		# cleanup in pre_remove.
+		'nftables'
+		# dlopen'd at runtime by the iced (winit/wgpu) GUI. Upstream's main
+		# branch omits these and the UI dies on startup.
+		'libxkbcommon'
+		'wayland'
+		# The package installs into usr/share/icons/hicolor/, so it owes a
+		# dependency on whoever owns that hierarchy. namcap raises this as an
+		# error, not a warning, and it is the same one the calamares package
+		# here already had to fix. Upstream's own PKGBUILD is missing it too.
+		'hicolor-icon-theme'
+		# The kernel layer is not optional here. Making it a hard dependency is
+		# what turns "CFC quietly runs without eBPF" from a runtime surprise
+		# into something pacman refuses to do.
+		"colony-firewall-control-ebpf=$pkgver-$pkgrel"
+	)
+	optdepends=(
+		'libnotify: desktop notifications on new prompts'
+		'libx11: run the GUI in X11/XWayland sessions'
+	)
+	backup=('etc/colony-firewall/daemon.toml')
+	install="$pkgbase.install"
+
+	cd "$_srcname"
+
+	install -Dm755 target/release/colony-firewalld     "$pkgdir/usr/bin/colony-firewalld"
+	install -Dm755 target/release/colony-firewall      "$pkgdir/usr/bin/colony-firewall"
+	install -Dm755 target/release/colony-firewall-tray "$pkgdir/usr/bin/colony-firewall-tray"
+	install -Dm755 target/release/cfc                  "$pkgdir/usr/bin/cfc"
+
+	install -Dm644 systemd/colony-firewalld.service \
+		"$pkgdir/usr/lib/systemd/system/colony-firewalld.service"
+	install -Dm644 systemd/colony-firewall-nft.service \
+		"$pkgdir/usr/lib/systemd/system/colony-firewall-nft.service"
+	# Shipped but never enabled by the scriptlet. Turning on the inbound chain
+	# can strand a machine that is only reachable over the network, so it must
+	# never be something an upgrade does on someone's behalf.
+	install -Dm644 systemd/colony-firewall-nft-inbound.service \
+		"$pkgdir/usr/lib/systemd/system/colony-firewall-nft-inbound.service"
+
+	# Creates the colony-firewall group. Without it the gRPC socket is
+	# root-only and the desktop UI has nothing to talk to.
+	install -Dm644 systemd/colony-firewall.sysusers \
+		"$pkgdir/usr/lib/sysusers.d/colony-firewall.conf"
+
+	install -Dm644 systemd/daemon.toml.sample \
+		"$pkgdir/etc/colony-firewall/daemon.toml"
+
+	install -Dm644 systemd/nftables-snippet.conf \
+		"$pkgdir/usr/share/colony-firewall/nftables-snippet.conf"
+	install -Dm644 systemd/nftables-inbound.conf \
+		"$pkgdir/usr/share/colony-firewall/nftables-inbound.conf"
+
+	# ExecStartPre of the inbound unit. 0755: systemd execs it directly.
+	install -Dm755 scripts/inbound-lockout-guard.sh \
+		"$pkgdir/usr/lib/colony-firewall/inbound-lockout-guard.sh"
+
+	# No alpm hook here, and that is a correction rather than an omission. The
+	# obvious one — purge stale BPF pins after an upgrade — is actively harmful:
+	# removing /sys/fs/bpf/colony-firewall is precisely how CFC is switched off,
+	# so a hook doing it on every upgrade would silently drop enforcement on a
+	# machine whose owner asked for the opposite. The pin directory is versioned
+	# by ABI (v3/, v4/…), the incoming daemon adopts what is compatible, and a
+	# superseded directory is inert residue rather than a hazard. The upgrade
+	# notice in the scriptlet is the useful half of the idea.
+
+	install -Dm644 pkg/colony-firewall.desktop \
+		"$pkgdir/usr/share/applications/colony-firewall.desktop"
+	install -Dm644 pkg/colony-firewall-autostart.desktop \
+		"$pkgdir/etc/xdg/autostart/colony-firewall.desktop"
+	install -Dm644 pkg/colony-firewall-tray-autostart.desktop \
+		"$pkgdir/etc/xdg/autostart/colony-firewall-tray.desktop"
+	install -Dm644 pkg/colony-firewall.svg \
+		"$pkgdir/usr/share/icons/hicolor/scalable/apps/colony-firewall.svg"
+
+	install -Dm644 README.md            "$pkgdir/usr/share/doc/$pkgname/README.md"
+	install -Dm644 docs/ARCHITECTURE.md "$pkgdir/usr/share/doc/$pkgname/ARCHITECTURE.md"
+	install -Dm644 docs/HARDENING.md    "$pkgdir/usr/share/doc/$pkgname/HARDENING.md"
+	# `cfc status` names this file when it warns that nothing is being enforced,
+	# so it has to actually be on disk.
+	install -Dm644 docs/TROUBLESHOOTING.md \
+		"$pkgdir/usr/share/doc/$pkgname/TROUBLESHOOTING.md"
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+
+	# Generated by the binary just built, so they can never drift from the
+	# actual CLI surface. Neither subcommand talks to the daemon, so this works
+	# inside a build chroot.
+	local _gen="$srcdir/generated"
+	install -d "$_gen"
+	target/release/cfc completions bash >"$_gen/cfc.bash"
+	target/release/cfc completions zsh  >"$_gen/_cfc"
+	target/release/cfc completions fish >"$_gen/cfc.fish"
+	target/release/cfc man --dir        "$_gen/man"
+
+	install -Dm644 "$_gen/cfc.bash" "$pkgdir/usr/share/bash-completion/completions/cfc"
+	install -Dm644 "$_gen/_cfc"     "$pkgdir/usr/share/zsh/site-functions/_cfc"
+	install -Dm644 "$_gen/cfc.fish" "$pkgdir/usr/share/fish/vendor_completions.d/cfc.fish"
+	install -Dm644 -t "$pkgdir/usr/share/man/man1" "$_gen"/man/*.1
+}
+
+package_colony-firewall-control-ebpf() {
+	pkgdesc='Colony Firewall Control — kernel-side eBPF object'
+	# No depends. The object is data: the daemon loads it at runtime from this
+	# path, and it is deliberately installable without the rest.
+	#
+	# Its own package for two reasons. First, upstream intends to publish
+	# colony-firewall-control to the AUR, and that build ships no object — so
+	# the day both exist under one name, a user who ends up on the AUR build
+	# keeps the kernel layer as long as this package is installed. Second, an
+	# LLVM bump in Arch can require rebuilding just the object, and this makes
+	# that a one-package operation.
+	#
+	# !strip is load bearing. `strip` removes .BTF, and .BTF is what CO-RE
+	# relocations are computed from — a stripped object loads and then resolves
+	# every kernel field to the wrong offset. Upstream's own Cargo.toml carries
+	# the same warning about the `strip` profile setting.
+	options=('!strip' '!debug' '!lto')
+
+	# namcap reports three things about this package, and all three are it
+	# applying host-executable rules to a file that is not one:
+	#
+	#   lacks FULL RELRO / lacks PIE   meaningless for a BPF ELF; there is no
+	#                                  dynamic loader and no GOT to harden
+	#   is unstripped                  deliberate, see !strip above
+	#
+	# Left as warnings rather than silenced, because a future maintainer
+	# reading them should find this note rather than "fix" them.
+
+	cd "$_srcname"
+	install -Dm644 crates/cfc-ebpf/target/bpfel-unknown-none/release/cfc-ebpf \
+		"$pkgdir/usr/lib/colony-firewall/cfc-ebpf.o"
+
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

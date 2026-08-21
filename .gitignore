@@ -5,6 +5,14 @@ iso/out/
 *.iso
 *.pkg.tar.zst
 *.pkg.tar.zst.sig
+
+# Upstream source tarballs fetched by makepkg. A PKGBUILD names the URL and
+# pins the sha256, which is the whole point — keeping a copy in git adds a
+# binary blob and no guarantee. calamares/ and paru/ have theirs committed from
+# before this rule; they are left alone rather than rewritten, but nothing new
+# should join them.
+packages/*/*.tar.gz
+packages/*/*.tar.xz
 src/
 pkg/
 

@@ -1,0 +1,80 @@
+# Deliberately does NOT enable anything.
+#
+# CFC starts on profile `balanced` with no rules, and with no rules every
+# outbound flow is refused until someone answers a prompt. Enabling it from a
+# scriptlet would hand the user a machine that looks exactly like a broken
+# network on first boot — the failure mode principe 5 and the J4 section of the
+# roadmap both warn about. Turning it on is a distribution policy decision, and
+# under ADR-0007 that belongs in a systemd preset shipped by a Colony
+# configuration package, seeded with `cfc rules bootstrap-defaults` and fitted
+# with the anti-lockout guard. That is J4 work, not this package's.
+#
+# Arch convention agrees for a different reason: packages do not enable units.
+
+post_install() {
+	cat <<'EOF'
+
+Colony Firewall Control is installed but not running.
+
+  Kernel layer:  /usr/lib/colony-firewall/cfc-ebpf.o
+                 `cfc status` reports which enforcement level is actually live.
+
+  To start it:   cfc rules bootstrap-defaults   # DNS, NTP, DHCP, pacman, ssh
+                 systemctl enable --now colony-firewalld colony-firewall-nft
+
+  To use the UI: usermod -aG colony-firewall <user>   # then log out and back in
+
+The inbound chain (colony-firewall-nft-inbound.service) stays off. Enabling it
+on a machine you reach over the network can lock you out at the next reboot:
+its pre-flight guard admits a live session but does not survive a restart.
+
+EOF
+}
+
+post_upgrade() {
+	# The daemon loads the eBPF object once, at startup. After an upgrade the
+	# new object is on disk while the old programs are still pinned in the
+	# kernel and still enforcing — which is correct, that is the property worth
+	# having, but it means the running daemon is older than the object beside it.
+	#
+	# Not restarted automatically. A restart is safe (the pins outlive it) but
+	# it drops in-flight prompts, and Arch packages do not restart services on
+	# the user's behalf.
+	if systemctl is-active --quiet colony-firewalld.service 2>/dev/null; then
+		cat <<'EOF'
+
+colony-firewalld is running an older build than the object now on disk.
+Load the new one when convenient:
+
+  systemctl restart colony-firewalld.service
+
+Enforcement is not interrupted by this: the pinned programs keep refusing
+while the daemon is down.
+
+EOF
+	fi
+}
+
+pre_remove() {
+	# Both units, and both tables. Upstream's own scriptlet stops
+	# colony-firewall-nft and deletes `table inet colony_firewall`, but forgets
+	# the inbound pair — so removing the package on a machine where the inbound
+	# chain was enabled leaves an orphan filtering table with nothing left to
+	# manage it. On a host reached over the network that is the lockout the
+	# separate unit existed to prevent.
+	systemctl disable --now \
+		colony-firewall-nft-inbound.service \
+		colony-firewall-nft.service \
+		colony-firewalld.service 2>/dev/null || true
+
+	local t
+	for t in colony_firewall colony_firewall_inbound; do
+		nft delete table inet "$t" 2>/dev/null || true
+	done
+
+	# Stopping the daemon is no longer enough to stop CFC: the pinned programs
+	# are evaluated by the kernel on their own and keep returning EPERM to
+	# processes started after the daemon died. That is the whole point of them,
+	# and it is also why removing the package has to take them down explicitly.
+	rm -rf /sys/fs/bpf/colony-firewall
+}
