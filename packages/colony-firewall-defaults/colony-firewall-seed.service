@@ -1,0 +1,33 @@
+# Seeds Colony Firewall's `system` bundle before anything can be blocked.
+#
+# CFC starts with no rules, and its outbound chain is fail-closed: a machine
+# that loads the table before any rule exists refuses DNS, DHCP, NTP and pacman,
+# which looks exactly like a broken network. The `system` bundle is the twelve
+# rules that answer that — resolved, timesyncd, chrony, dhcpcd, NetworkManager
+# and networkd in v4 and v6, pacman, paru, and the ssh client.
+#
+# Ordered between the daemon and the table, so the three always happen in the
+# only order that is safe: daemon up, rules in, table loaded.
+#
+# `cfc rules bootstrap-defaults` is idempotent — bundle_add counts what is
+# already present and skips it — so this runs on every boot without a stamp file
+# and without a state directory to go stale.
+
+[Unit]
+Description=Seed Colony Firewall's default rules
+Documentation=https://github.com/Project-Colony/Colony-Firewall-Control
+# Requires, not Wants: seeding that cannot reach the daemon has done nothing,
+# and the nft drop-in in this package makes the table wait on this unit. A
+# failure here therefore leaves the machine unfiltered rather than unreachable,
+# which is the right way round for something running before anyone can log in.
+Requires=colony-firewalld.service
+After=colony-firewalld.service
+Before=colony-firewall-nft.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/cfc rules bootstrap-defaults
+
+[Install]
+WantedBy=multi-user.target

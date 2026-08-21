@@ -1,0 +1,79 @@
+# Unlike colony-firewall-control's scriptlet, this one DOES enable things —
+# that is the entire reason the package exists. Turning a firewall on is a
+# distribution's decision, so it lives in a distribution package that someone
+# installs on purpose, not in the upstream package that anyone might (ADR-0007).
+
+_units='colony-firewalld.service colony-firewall-seed.service colony-firewall-nft.service'
+
+# Everyone who logs in at a seat, so the prompt window can reach the daemon.
+#
+# The control socket is group-owned by colony-firewall, and without membership
+# the UI autostarts and greets the user with "permission denied" — which is what
+# happened on the first real install. Doing it here rather than leaving it as a
+# command in a message is the difference between a firewall people use and one
+# they turn off.
+#
+# Bounded on purpose: uid >= 1000 and below the nobody range, and only accounts
+# with a login shell. It does widen who can change firewall rules on a
+# multi-user machine; on the single-seat desktop this distribution is for, the
+# alternative is a person who cannot answer their own prompts.
+_join_group() {
+	local user uid shell
+	while IFS=: read -r user _ uid _ _ _ shell; do
+		(( uid >= 1000 && uid < 65000 )) || continue
+		case $shell in */nologin|*/false|'') continue ;; esac
+		usermod -aG colony-firewall "$user" 2>/dev/null || true
+	done < /etc/passwd
+}
+
+post_install() {
+	# preset, not enable: it honours 80-colony-firewall.preset, so an admin who
+	# dropped a lower-numbered file in /etc/systemd/system-preset/ to keep the
+	# firewall off keeps it off across upgrades. `enable` would override them
+	# every time this package was reinstalled.
+	# shellcheck disable=SC2086
+	systemctl preset $_units 2>/dev/null || true
+	_join_group
+
+	cat <<'EOF'
+
+Colony Firewall Control will start at the next boot, in this order:
+
+  colony-firewalld       the daemon
+  colony-firewall-seed   the twelve `system` rules — DNS, DHCP, NTP, pacman, ssh
+  colony-firewall-nft    the filtering table, last
+
+Each step waits on the one before it, so the fail-closed table can never be
+loaded without a daemon behind it or without rules in it.
+
+Anything outside those twelve rules — a browser, a chat client — is held until
+you answer a prompt. The tray and the window do that; `cfc prompts` does it from
+a terminal.
+
+Inbound filtering stays off. Turning it on can strand a machine you reach over
+the network: `systemctl enable --now colony-firewall-nft-inbound`, and read
+/usr/share/doc/colony-firewall-control/HARDENING.md first.
+
+To start it now instead of at the next boot:
+  systemctl start colony-firewalld colony-firewall-seed colony-firewall-nft
+
+EOF
+}
+
+post_upgrade() {
+	# Deliberately does NOT re-run preset. Someone who disabled the firewall on
+	# purpose should not find it back on after an update.
+	:
+}
+
+pre_remove() {
+	# shellcheck disable=SC2086
+	systemctl disable --now $_units 2>/dev/null || true
+	nft delete table inet colony_firewall 2>/dev/null || true
+	cat <<'EOF'
+
+Colony Firewall's units are disabled. colony-firewall-control itself is still
+installed; remove it too if that is what you meant.
+
+EOF
+}

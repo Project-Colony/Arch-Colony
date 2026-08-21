@@ -29,9 +29,50 @@ for p in "${pkgs[@]}"; do
 	[[ -f "$dir/PKGBUILD" ]] || { echo "no PKGBUILD in $dir" >&2; exit 1; }
 
 	echo "==> building $p"
+
+	# The chroot only ever sees [core] and [extra]; [colony] is not in devtools'
+	# pacman.conf and has no business being there, since it would make the build
+	# depend on what we happen to have published. So a package that depends on
+	# another Colony package cannot resolve it — colony-firewall-defaults needs
+	# colony-firewall-control, and pkgctl stopped at "Could not resolve all
+	# dependencies".
+	#
+	# --install-to-chroot takes files rather than names, which is the right shape
+	# here: it builds against exactly the artefact in repo/out, the one that is
+	# about to be published, and not against whatever a repository might serve.
+	# Transitively, because one level is not enough: colony-firewall-defaults
+	# wants colony-firewall-control, which wants colony-firewall-control-ebpf.
+	# Injecting only the first leaves pacman with an unsatisfiable file and it
+	# fails exactly as if nothing had been injected at all.
+	inject=()
+	declare -A seen=()
+	queue=()
+	if srcinfo=$(cd "$dir" && makepkg --printsrcinfo 2>/dev/null); then
+		mapfile -t queue < <(printf '%s\n' "$srcinfo" |
+			awk -F' = ' '/^\t(make)?depends = /{sub(/[<>=].*/, "", $2); print $2}' | sort -u)
+	fi
+	while (( ${#queue[@]} )); do
+		want="${queue[0]}"; queue=("${queue[@]:1}")
+		[[ -n ${seen[$want]:-} ]] && continue
+		seen[$want]=1
+		shopt -s nullglob
+		have=("$OUT/$want"-[0-9]*.pkg.tar.zst)
+		shopt -u nullglob
+		(( ${#have[@]} )) || continue          # in [core]/[extra], the chroot has it
+		file="${have[-1]}"
+		echo "    injecting ${file##*/} (in [colony], not in the chroot)"
+		inject+=(--install-to-chroot "$file")
+		# Its own dependencies, read from the built package rather than from a
+		# PKGBUILD we may not have.
+		mapfile -t more < <(bsdtar -xOf "$file" .PKGINFO 2>/dev/null |
+			awk -F' = ' '/^depend = /{sub(/[<>=].*/, "", $2); print $2}')
+		queue+=("${more[@]}")
+	done
+	unset seen
+
 	# A clean chroot, so the result does not depend on whatever happens to be
 	# installed on this machine.
-	( cd "$dir" && pkgctl build --clean )
+	( cd "$dir" && pkgctl build --clean "${inject[@]}" )
 
 	shopt -s nullglob
 	built=("$dir"/*.pkg.tar.zst)

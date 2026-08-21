@@ -1,0 +1,2 @@
+colony-firewall-defaults W: Dependency included, but may not be needed ('colony-firewall-control')
+colony-firewall-defaults W: Dependency included, but may not be needed ('nftables')

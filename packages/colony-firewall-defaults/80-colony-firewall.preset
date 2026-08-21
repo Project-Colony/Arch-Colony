@@ -1,0 +1,14 @@
+# Arch Colony turns its firewall on.
+#
+# 80- so a local /etc/systemd/system-preset/ file at a lower number still wins:
+# this is the distribution's default, not its decision for you.
+enable colony-firewalld.service
+enable colony-firewall-seed.service
+enable colony-firewall-nft.service
+
+# Inbound stays off, and this line is the point of writing it down rather than
+# leaving it absent. Enabling the inbound chain can strand a machine reached
+# over the network — its pre-flight guard admits a live session but does not
+# survive the next reboot — so it must remain something a person turns on
+# knowingly, never something an install did to them.
+disable colony-firewall-nft-inbound.service

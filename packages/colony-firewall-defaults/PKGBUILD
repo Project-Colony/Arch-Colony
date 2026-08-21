@@ -1,0 +1,52 @@
+# Maintainer: MotherSphere <linhajahad@gmail.com>
+#
+# Arch Colony's decision to run Colony Firewall Control, expressed as a package.
+#
+# colony-firewall-control deliberately enables nothing: it is the upstream
+# package, and a firewall that switches itself on when someone installs it on
+# their own machine is rude at best. Turning it on is a distribution's choice,
+# so it lives here, in something installed on purpose (ADR-0007).
+#
+# What "on" has to mean, and why it is three units rather than one:
+#
+#   colony-firewalld        the daemon
+#   colony-firewall-seed    the `system` bundle — DNS, DHCP, NTP, pacman, ssh
+#   colony-firewall-nft     the fail-closed table, last
+#
+# Loading the table first gives a machine that refuses to resolve a name, renew
+# a lease or reach a mirror — indistinguishable from a broken network, and
+# unrecoverable without typing `nft delete table` from memory. That is not
+# hypothetical: it happened twice on 2026-08-21, on the first machine this was
+# ever installed on.
+
+pkgname=colony-firewall-defaults
+pkgver=20260821
+pkgrel=1
+pkgdesc='Arch Colony defaults for Colony Firewall Control — enabled, seeded, inbound off'
+arch=('any')
+url='https://github.com/Project-Colony/Arch-Colony'
+license=('GPL-3.0-or-later')
+depends=(
+	'colony-firewall-control'
+	# nft, for the cleanup in pre_remove.
+	'nftables'
+)
+install="$pkgname.install"
+source=('colony-firewall-seed.service'
+        '10-wait-for-seed.conf'
+        '80-colony-firewall.preset')
+sha256sums=('SKIP' 'SKIP' 'SKIP')
+
+package() {
+	install -Dm644 colony-firewall-seed.service \
+		"$pkgdir/usr/lib/systemd/system/colony-firewall-seed.service"
+
+	# A drop-in on someone else's unit rather than a patched copy of it. The
+	# unit belongs to colony-firewall-control; when the table may load is Arch
+	# Colony's policy, and the two have to be able to move independently.
+	install -Dm644 10-wait-for-seed.conf \
+		"$pkgdir/usr/lib/systemd/system/colony-firewall-nft.service.d/10-wait-for-seed.conf"
+
+	install -Dm644 80-colony-firewall.preset \
+		"$pkgdir/usr/lib/systemd/system-preset/80-colony-firewall.preset"
+}
