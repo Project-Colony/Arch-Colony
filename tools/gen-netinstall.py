@@ -25,7 +25,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import re
+import ast
 import subprocess
 import sys
 from pathlib import Path
@@ -99,61 +99,108 @@ OVERRIDES = {
 }
 
 
+def _strings(node: ast.AST, consts: dict[str, list[str]]) -> list[str] | None:
+    """Flatten an expression into the strings it denotes, or None if it doesn't.
+
+    Handles literals, lists and tuples of them, module-level constants, and
+    `[...] + something` — the shape several profiles use to append a package the
+    user is separately asked about.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return [node.value]
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        out: list[str] = []
+        for element in node.elts:
+            got = _strings(element, consts)
+            if got is None:
+                return None
+            out.extend(got)
+        return out
+    if isinstance(node, ast.Name):
+        return list(consts[node.id]) if node.id in consts else None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _strings(node.left, consts)
+        right = _strings(node.right, consts)
+        if left is None and right is None:
+            return None
+        # One unresolvable side is fine: `return [ … ] + additional` holds a
+        # seat-access package the user is asked about, and Arch Colony always
+        # installs a greeter, which already provides a logind seat.
+        return (left or []) + (right or [])
+    return None
+
+
 def parse_desktop(path: Path) -> dict | None:
     """Pull name, packages and greeter out of an archinstall desktop profile.
 
-    Several profiles build the list as `return [ … ] + additional`, where
-    `additional` holds a seat-access package the user is asked about. Arch Colony
-    always installs a greeter, which provides a logind seat, so the extra package
-    is not needed and only the literal list is taken.
+    Parsed with `ast`, not with regular expressions. Regex parsing of Python
+    cost this file twice: an exponential pattern CodeQL flagged as py/redos, and
+    a profile silently dropped because one element of its package list was a
+    module constant rather than a quoted literal — a list the old pattern could
+    only reject wholesale. `ast` removes both classes of mistake, and the module
+    constants it can now resolve are why niri_dms is offered at all.
     """
     if path.name in OVERRIDES:
         return dict(OVERRIDES[path.name], source=path.name)
 
-    src = path.read_text(encoding="utf-8")
-
-    # `\s*\n?\s*` was the same shape of ambiguity as the listing pattern below —
-    # \n is inside \s, so one newline had three ways to be matched — and it is
-    # exactly equivalent to `\s*`. CodeQL did not flag this one; it was found by
-    # looking for the same mistake twice.
-    name = re.search(r"super\(\)\.__init__\(\s*'([^']+)'", src)
-    if not name:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except SyntaxError:
         return None
 
-    # The body of the packages property, up to the next decorator or class.
-    body = re.search(
-        r"def packages\(\s*self\s*\)\s*->\s*list\[str\]:(.*?)(?=\n\t@|\nclass |\Z)",
-        src, re.S)
-    if not body:
+    # Module-level `NAME = 'x'` and `NAME = ['x', 'y']`, so a list element that
+    # is a constant reference resolves instead of poisoning the whole list.
+    consts: dict[str, list[str]] = {}
+    for stmt in tree.body:
+        if not isinstance(stmt, ast.Assign):
+            continue
+        got = _strings(stmt.value, consts)
+        if got is None:
+            continue
+        for target in stmt.targets:
+            if isinstance(target, ast.Name):
+                consts[target.id] = got
+
+    name = packages = greeter = None
+    for node in ast.walk(tree):
+        # `super().__init__('Hyprland', ProfileType.DesktopEnv, …)`
+        if (name is None and isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "__init__"
+                and isinstance(node.func.value, ast.Call)
+                and isinstance(node.func.value.func, ast.Name)
+                and node.func.value.func.id == "super"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)):
+            name = node.args[0].value
+
+        if not isinstance(node, ast.FunctionDef):
+            continue
+
+        if node.name == "packages" and packages is None:
+            for inner in ast.walk(node):
+                if isinstance(inner, ast.Return) and inner.value is not None:
+                    got = _strings(inner.value, consts)
+                    if got:
+                        packages = got
+                        break
+
+        if node.name == "default_greeter_type" and greeter is None:
+            for inner in ast.walk(node):
+                if (isinstance(inner, ast.Attribute)
+                        and isinstance(inner.value, ast.Name)
+                        and inner.value.id == "GreeterType"):
+                    greeter = inner.attr.lower()
+                    break
+
+    if name is None or not packages:
         return None
 
-    # The first bracketed list of string literals inside it.
-    #
-    # Written without nested quantifiers over whitespace. The obvious form,
-    # `\[\s*((?:\s*'[^']+'\s*,?)+)\s*\]`, is exponential: the whitespace in the
-    # gap between two items can be eaten by the previous iteration's trailing
-    # \s*, the next one's leading \s*, or split between them, so a string with
-    # no closing bracket makes the engine try every split. Measured on the real
-    # pattern: 22 items 1.4 s, 26 items 36 s. CodeQL flagged it as py/redos once
-    # this repository went public.
-    #
-    # Here each repetition must consume a quoted item, and the separator is a
-    # single character class rather than two adjacent stars, so there is exactly
-    # one way to match. Verified to extract identical results across all 162
-    # Python files archinstall ships.
-    listing = re.search(
-        r"\[\s*('[^']+'(?:[\s,]*'[^']+')*)[\s,]*\]", body.group(1), re.S)
-    if not listing:
-        return None
-    packages = re.findall(r"'([^']+)'", listing.group(1))
-    if not packages:
-        return None
-
-    greeter = re.search(r"def default_greeter_type.*?GreeterType\.(\w+)", src, re.S)
     return {
-        "name": name.group(1),
+        "name": name,
         "packages": packages,
-        "greeter": greeter.group(1).lower() if greeter else None,
+        "greeter": greeter,
         "source": path.name,
     }
 
