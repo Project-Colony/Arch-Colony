@@ -138,6 +138,39 @@ cmd_status() {
 	fi
 
 	echo
+	echo "${B}session${R}"
+	# Added because diagnosing "I picked a desktop and got a text console"
+	# otherwise means typing a wall of systemctl into a VM with no clipboard.
+	# Everything here is one line of output somebody would otherwise have to ask
+	# for, and the three of them together identify the failure on their own.
+	local target
+	target=$(systemctl get-default 2>/dev/null)
+	if [[ $target == graphical.target ]]; then
+		field "default target" "${OK}$target${R}"
+	else
+		field "default target" "${BAD}${target:-unknown}${R} — no greeter will start"
+	fi
+	# The symlink is the truth: `systemctl enable` on a display manager rewrites
+	# it, so with two desktops installed it names whichever won.
+	if [[ -L /etc/systemd/system/display-manager.service ]]; then
+		local dm
+		dm=$(basename "$(readlink /etc/systemd/system/display-manager.service)")
+		if systemctl is-active --quiet display-manager 2>/dev/null; then
+			field "display manager" "${OK}$dm${R}, running"
+		else
+			field "display manager" "${WARN}$dm${R}, enabled but not running"
+		fi
+	else
+		field "display manager" "${BAD}none enabled${R} — the machine boots to a console"
+	fi
+	local greeters
+	greeters=$(pacman -Qq 2>/dev/null | grep -xE 'sddm|gdm|lightdm|greetd|ly|cosmic-greeter|plasma-login-manager' | tr '\n' ' ')
+	field "greeters installed" "${greeters:-${DIM}none${R}}"
+	local failed
+	failed=$(systemctl --failed --no-legend --no-pager 2>/dev/null | awk '{print $1}' | tr '\n' ' ')
+	[[ -n $failed ]] && field "failed units" "${BAD}$failed${R}"
+
+	echo
 	echo "${B}firewall${R}"
 	if ! command -v cfc >/dev/null; then
 		field "Colony Firewall" "${DIM}not installed${R} — pacman -S colony-firewall-control"

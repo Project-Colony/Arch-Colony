@@ -12,7 +12,7 @@
 
 pkgname=colonyctl
 pkgver=20260821
-pkgrel=1
+pkgrel=2
 pkgdesc='Arch Colony system control — updates, status, and the Colony firewall'
 arch=('any')
 url='https://github.com/Project-Colony/Arch-Colony'
