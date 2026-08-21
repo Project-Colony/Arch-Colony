@@ -12,19 +12,47 @@ signés par Arch, à la vitesse d'Arch.
 
 ---
 
+## Télécharger
+
+[**archcolony-2026.08.21-x86_64.iso**](https://github.com/Project-Colony/Arch-Colony/releases/tag/iso-2026.08.21) — 1,7 Go
+
+Vérifier avant de l'écrire sur quoi que ce soit. La somme de contrôle attrape un
+téléchargement corrompu ; c'est la signature qui dit que l'image vient bien de nous.
+
+```sh
+gpg --verify archcolony-2026.08.21-x86_64.iso.sig archcolony-2026.08.21-x86_64.iso
+sha256sum -c archcolony-2026.08.21-x86_64.iso.sha256
+```
+
+La clé est celle du paquet `colony-keyring`, empreinte
+`5CD2 FCA1 3E69 1C65 A354  780D 80C1 18F7 74E6 C43F`.
+
+---
+
 ## État
 
-**Conception.** Rien n'est encore construit. Les fondations — ce qu'on fait, ce qu'on refuse
-de faire, et dans quel ordre — sont écrites :
+**Trois jalons sur sept sont faits, et se vérifient sur machine.**
+
+| | | |
+|---|---|---|
+| **J0** | ✅ | le dépôt `[colony]` existe, signé, et sert ses paquets par HTTPS |
+| **J1** | ✅ | une image démarre sous `linux-hardened` et se déclare Arch Colony |
+| **J2** | ✅ | Calamares installe sur disque, la machine redémarre et ouvre une session |
+| **J3** | ⏳ | le bureau et l'identité visuelle |
+
+Ce que le dépôt sert aujourd'hui : `calamares`, `colonyctl`, `colony-firewall-control`
+et sa couche noyau eBPF, `colony-keyring`, `colony-mirrorlist`, `colony-mkinitcpio`,
+`colony-release`, `paru`.
+
+Sur une machine installée, `[colony]` est déjà configuré — les paquets Colony arrivent par
+`pacman -Syu` comme ceux d'Arch. `colonyctl status` dit ce qui tourne et ce qui protège.
 
 | Document | Contenu |
 |---|---|
 | [Principes](docs/principes.md) | Ce à quoi on ne touche pas, et pourquoi |
 | [Modèle](docs/modele.md) | Les quatre couches, le suivi de l'amont, l'échappatoire SELinux |
-| [Décisions](docs/decisions/README.md) | Sept ADR, dont une contraint toutes les autres |
+| [Décisions](docs/decisions/README.md) | Neuf ADR, dont une contraint toutes les autres |
 | [Feuille de route](docs/feuille-de-route.md) | Sept jalons, chacun amorçable ou exécutable |
-
-Prochain jalon : **J0 — le dépôt `[colony]` existe et sert un paquet.**
 
 ---
 
