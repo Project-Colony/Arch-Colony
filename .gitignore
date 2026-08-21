@@ -21,3 +21,8 @@ pkg/
 repo/colony-revocation.asc
 *.asc
 *secret*
+
+# Python bytecode cache. tools/gen-netinstall.py generates one on every ISO
+# build; it was tracked by accident and changes on every run.
+__pycache__/
+*.pyc
