@@ -4,6 +4,7 @@ L'installateur graphique démarre automatiquement. Si vous lisez ceci, c'est
 qu'il s'est arrêté ou que vous avez ouvert une autre console.
 
   Relancer l'installateur     cage -- calamares
+  Si le rendu échoue          WLR_RENDERER=pixman cage -- calamares
   Voir pourquoi il a échoué   grep -iE 'error|warning' ~/.cache/calamares/session.log | tail -30
 
 Réseau : il est DÉSACTIVÉ tant que vous ne l'avez pas autorisé au démarrage.

@@ -47,6 +47,36 @@ if [[ -z $WAYLAND_DISPLAY && $XDG_VTNR == 1 ]]; then
     # logind provides the seat. Naming the backend skips the failed attempt
     # instead of hiding its message, which is the difference between silencing a
     # warning and not producing it.
+    # Hardware acceleration first, software rendering if the GPU cannot provide
+    # it. Reported from real hardware on 2026-08-22, an NVIDIA card on nouveau:
+    #
+    #   MESA: error: ZINK: vkCreateInstance failed (VK_ERROR_INCOMPATIBLE_DRIVER)
+    #   libEGL warning: egl: failed to create dri2 screen
+    #   failed to create the wlroots renderer
+    #   installer exited (1)
+    #
+    # Mesa routes nouveau's OpenGL through zink — OpenGL on top of Vulkan — since
+    # the classic driver was dropped, so a card whose Vulkan support is missing or
+    # too old takes EGL, wlroots and the whole installer down with it. Nothing was
+    # wrong with the machine; it simply could not be installed on.
+    #
+    # pixman is wlroots' CPU renderer. Calamares is a Qt form: it does not need a
+    # GPU, and an installer that starts slowly beats one that does not start.
+    # Trying acceleration first costs one failed launch on the machines that need
+    # the fallback, and nothing at all on the ones that do not.
     LIBSEAT_BACKEND=logind cage -- calamares
-    print "installer exited ($?) — you are at a shell"
+    _colony_rc=$?
+
+    if (( _colony_rc != 0 )); then
+        print
+        print "L'installateur graphique n'a pas démarré (code $_colony_rc)."
+        print "Nouvelle tentative en rendu logiciel — c'est plus lent, pas moins fiable."
+        print
+        LIBSEAT_BACKEND=logind WLR_RENDERER=pixman LIBGL_ALWAYS_SOFTWARE=1 \
+            cage -- calamares
+        _colony_rc=$?
+    fi
+
+    print "installer exited ($_colony_rc) — you are at a shell"
+    unset _colony_rc
 fi
