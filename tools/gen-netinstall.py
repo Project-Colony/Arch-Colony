@@ -87,6 +87,35 @@ GREETERS = {
     "greetddms": (["greetd"], "greetd"),
 }
 
+# The login screen is its own question, exactly as archinstall makes it one.
+#
+# It used to be folded into each desktop's package list, so ticking three
+# desktops installed three greeters — and all three declare
+# Alias=display-manager.service, so they fought over one symlink. `systemctl
+# enable` refuses to overwrite an existing alias, so the FIRST one won, which
+# on 2026-08-21 meant greetd: its stock session is `agreety --cmd /bin/sh`, a
+# text login on vt1. Someone who picked COSMIC and Hyprland booted to what
+# looked exactly like a broken install.
+#
+# archinstall never has that problem because it resolves a single greeter
+# (DesktopProfile.default_greeter_type returns one) and offers it as its own
+# menu item, with the desktop's default merely preselected. This is that shape,
+# expressed in the only vocabulary a static netinstall page has: one group,
+# preselected, and a description saying to pick one.
+#
+# sddm is the default because it serves the most desktops here and lists every
+# installed session, so it is right even when it is not the desktop's own.
+GREETER_ORDER = [
+    ("sddm", "SDDM", "Recommandé — propose toutes les sessions installées", True),
+    ("gdm", "GDM", "Celui de GNOME", False),
+    ("lightdm", "LightDM", "Léger, thème GTK", False),
+    ("lightdmslick", "LightDM (slick)", "LightDM avec le thème slick", False),
+    ("plasmaloginmanager", "Plasma Login Manager", "Celui de KDE Plasma", False),
+    ("cosmicsession", "COSMIC Greeter", "Celui de COSMIC", False),
+    ("ly", "ly", "En console, très léger — remplace le getty de tty1", False),
+    ("greetddms", "greetd", "Sans configuration, il ouvre une session TEXTE", False),
+]
+
 # Profiles whose package list cannot be read statically, because it depends on a
 # choice archinstall makes interactively. Arch Colony takes the default that
 # archinstall itself marks as recommended.
@@ -263,7 +292,7 @@ def emit(groups: list[dict]) -> str:
                 lines.append(f'    - name: "{sub["name"]}"')
                 if sub.get("description"):
                     lines.append(f'      description: "{sub["description"]}"')
-                lines.append("      selected: false")
+                lines.append(f'      selected: {"true" if sub.get("selected") else "false"}')
                 if sub.get("noncheckable"):
                     lines.append("      noncheckable: true")
                 lines.append("      packages:")
@@ -313,9 +342,19 @@ def main() -> None:
         if g not in GREETERS:
             sys.exit(f"{d['source']}: unknown GreeterType '{g}' — add it to GREETERS. "
                      "Refusing to emit a desktop that would install without a login manager.")
-        pkgs, unit = GREETERS[g]
-        d["packages"] = d["packages"] + [p for p in pkgs if p not in d["packages"]]
-        d["greeter_unit"] = unit
+        # Kept for the description only. Merging these into d["packages"] is
+        # what produced three greeters for three desktops; the login screen is
+        # chosen once, in its own group below.
+        d["greeter_unit"] = GREETERS[g][1]
+
+    # Strip greeters from the desktop lists outright, because some profiles put
+    # theirs in `packages` upstream — i3 lists lightdm and lightdm-gtk-greeter
+    # itself — and archinstall does not mind, since install_greeter runs anyway
+    # and pacman is idempotent. Here it matters: a desktop that quietly brings a
+    # second greeter recreates the alias fight the separate group exists to end.
+    greeter_pkgs = {pkg for pkgs, _ in GREETERS.values() for pkg in pkgs}
+    for d in desktops:
+        d["packages"] = [p for p in d["packages"] if p not in greeter_pkgs]
 
     groups = [
         {
@@ -325,11 +364,21 @@ def main() -> None:
             "subgroups": [
                 {
                     "name": d["name"],
-                    "description": (f"greeter : {d['greeter_unit']}" if d.get("greeter_unit")
-                                    else "sans greeter par défaut"),
+                    "description": (f"écran de connexion attendu : {d['greeter_unit']}"
+                                    if d.get("greeter_unit") else "aucun écran de connexion attendu"),
                     "packages": d["packages"],
                 }
                 for d in desktops
+            ],
+        },
+        {
+            "name": "Écran de connexion",
+            "description": "Un seul. SDDM est pré-coché et convient à tous les bureaux ci-dessus.",
+            "expanded": True,
+            "subgroups": [
+                {"name": label, "description": desc,
+                 "selected": default, "packages": GREETERS[key][0]}
+                for key, label, desc, default in GREETER_ORDER
             ],
         },
         {
