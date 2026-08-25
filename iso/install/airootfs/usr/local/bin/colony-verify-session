@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Refuse to finish an installation that would boot to a text console.
+#
+# Calamares cannot ask a shellprocess what the user ticked — the netinstall
+# selections live in global storage, which only a compiled module can read. So
+# this does not warn about a missing choice beforehand; it inspects the result
+# and repairs it, and fails loudly when it cannot.
+#
+# The case it exists for: a desktop is installed and no display manager is. That
+# machine reboots into `colony login:` and looks broken, which is exactly what
+# happened on 2026-08-21 for a different reason. A person who picked GNOME did
+# not ask for a console.
+#
+# Runs against ${ROOT} rather than inside a chroot, so it needs nothing of the
+# target beyond a filesystem.
+
+set -uo pipefail
+
+ROOT="${1:?usage: colony-verify-session <target-root>}"
+[[ -d $ROOT ]] || { echo "no such target root: $ROOT" >&2; exit 1; }
+
+shopt -s nullglob
+sessions=("$ROOT"/usr/share/wayland-sessions/*.desktop "$ROOT"/usr/share/xsessions/*.desktop)
+shopt -u nullglob
+
+# No graphical session at all is a legitimate choice — a server, or someone who
+# ticked nothing on purpose. Nothing to verify.
+if (( ${#sessions[@]} == 0 )); then
+	echo "no graphical session installed; nothing to verify"
+	exit 0
+fi
+
+if [[ -L $ROOT/etc/systemd/system/display-manager.service ]]; then
+	printf 'login screen: %s, for %d session(s)\n' \
+		"$(basename "$(readlink "$ROOT/etc/systemd/system/display-manager.service")")" \
+		"${#sessions[@]}"
+	exit 0
+fi
+
+# A greeter is installed but none won the alias — enable one rather than leave
+# the machine unusable. Preference order matches shellprocess_services.conf.
+for unit in sddm gdm lightdm plasmalogin cosmic-greeter ly@tty1 greetd; do
+	base=${unit%@*}
+	[[ -f $ROOT/usr/lib/systemd/system/$base.service ]] || continue
+	echo "no login screen was enabled; enabling $unit"
+	arch-chroot "$ROOT" systemctl enable --force "$unit" || continue
+	[[ -L $ROOT/etc/systemd/system/display-manager.service ]] && exit 0
+done
+
+cat >&2 <<MSG
+
+This installation would boot to a text console.
+
+${#sessions[@]} graphical session(s) are installed and no login screen is. That
+happens when the "Écran de connexion" group was unticked on the software page:
+a desktop without one leaves you at a login: prompt that looks like a failure.
+
+Nothing here can be repaired without a greeter on the disk, so the install is
+stopped rather than finished into something unusable.
+
+Go back, tick one under "Écran de connexion" — SDDM suits every desktop offered
+— and install again.
+
+MSG
+exit 1
