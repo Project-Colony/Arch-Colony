@@ -29,4 +29,8 @@ file_permissions=(
   ["/usr/local/bin/choose-mirror"]="0:0:755"
   ["/usr/local/bin/Installation_guide"]="0:0:755"
   ["/usr/local/bin/livecd-sound"]="0:0:755"
+  # mkarchiso copies airootfs with --no-preserve=mode: a script not listed here
+  # is delivered 0644 and shellprocess dies with "Permission denied" (exit 126),
+  # which is how the first full VM install of the 2026.09.05 image failed.
+  ["/usr/local/bin/colony-verify-session"]="0:0:755"
 )
