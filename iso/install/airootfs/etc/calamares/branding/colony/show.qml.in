@@ -7,12 +7,16 @@ Presentation
 {
     id: presentation
 
-    Slide {
-        Rectangle {
-            anchors.fill: parent
-            color: "@bg_primary@"
-        }
+    // The view is larger than a Slide, and its default clear colour is white:
+    // seen as a white frame around the first themed image (2026-09-05). The
+    // ground belongs on the root, which Calamares sizes to the whole view.
+    Rectangle {
+        anchors.fill: parent
+        color: "@bg_primary@"
+        z: -1
+    }
 
+    Slide {
         Image {
             id: logo
             source: "logo.png"
