@@ -1,0 +1,302 @@
+/* Arch Colony installer stylesheet — a template.
+ *
+ * Every colour is a palette field name between at-signs, filled in at ISO build time
+ * from Project-Colony-Resources/generated/themes.json (tools/resolve-theme.py).
+ * No colour is written here (principe 4), and a field name that does not exist
+ * fails the build instead of shipping a rule Qt would drop without a word.
+ *
+ * Selectors: Qt widget classes, plus the object names Calamares 3.4 sets on its
+ * own parts (#sidebarApp, #view-button-next, #exec-progress, ...). Anything not
+ * styled here falls back to the Fusion style, on top of the colours below.
+ */
+
+/* ---- ground ------------------------------------------------------------- */
+
+QWidget {
+    background-color: @bg_primary@;
+    color: @text_primary@;
+    selection-background-color: @bg_selected@;
+    selection-color: @text_primary@;
+}
+#mainApp, #viewManager, #viewManagerStack, QDialog, QMessageBox {
+    background-color: @bg_primary@;
+}
+#sidebarApp, #sidebarMenuApp, #logoApp {
+    background-color: @bg_sidebar@;
+}
+QToolTip {
+    background-color: @bg_card@;
+    color: @text_primary@;
+    border: 1px solid @border_subtle@;
+    padding: 4px 6px;
+}
+
+/* ---- text --------------------------------------------------------------- */
+
+QLabel { background: transparent; }
+QLabel:disabled { color: @text_dim@; }
+#exec-message, #resultsExplanation, #summaryStep, #summaryItemBody,
+#partitionLabel, #bootInfoLabel, #deviceInfoLabel {
+    color: @text_secondary@;
+}
+#summaryTitle, #summaryItemTitle { color: @text_primary@; font-weight: bold; }
+
+/* ---- buttons ------------------------------------------------------------ */
+
+QPushButton {
+    background-color: @btn_default@;
+    color: @text_primary@;
+    border: 1px solid @border_subtle@;
+    border-radius: 4px;
+    padding: 6px 14px;
+    min-height: 20px;
+}
+QPushButton:hover   { background-color: @btn_hover@; }
+QPushButton:pressed { background-color: @btn_pressed@; }
+QPushButton:focus   { border-color: @accent_blue@; }
+QPushButton:disabled {
+    background-color: @bg_card@;
+    color: @text_dimmer@;
+    border-color: @divider@;
+}
+
+/* The one button that moves the installation forward: outlined in the family
+ * accent, filled with it on hover. */
+#view-button-next {
+    color: @accent_blue@;
+    border-color: @accent_blue@;
+    font-weight: bold;
+}
+#view-button-next:hover   { background-color: @accent_blue@; color: @bg_primary@; }
+#view-button-next:pressed { background-color: @btn_pressed@; color: @accent_blue@; }
+#view-button-next:disabled {
+    background-color: @bg_card@;
+    color: @text_dimmer@;
+    border-color: @divider@;
+}
+
+/* Cancel is the destructive exit; it says so quietly until hovered. */
+#view-button-cancel { color: @error@; }
+#view-button-cancel:hover   { background-color: @btn_danger_hover@; color: @error_light@; border-color: @error@; }
+#view-button-cancel:pressed { background-color: @btn_danger_bg@; }
+
+/* ---- inputs ------------------------------------------------------------- */
+
+QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QComboBox, QDateTimeEdit {
+    background-color: @bg_input@;
+    color: @text_primary@;
+    border: 1px solid @border_subtle@;
+    border-radius: 4px;
+    padding: 4px 6px;
+    selection-background-color: @bg_selected@;
+}
+QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QSpinBox:focus,
+QDoubleSpinBox:focus, QComboBox:focus, QDateTimeEdit:focus {
+    border-color: @accent_blue@;
+}
+QLineEdit:disabled, QTextEdit:disabled, QSpinBox:disabled, QComboBox:disabled {
+    background-color: @bg_card@;
+    color: @text_dimmer@;
+}
+QLineEdit { placeholder-text-color: @text_placeholder@; }
+
+QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    width: 22px;
+    border: none;
+}
+QComboBox::down-arrow {
+    image: none;
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid @text_secondary@;
+    margin-right: 6px;
+}
+QComboBox::down-arrow:disabled { border-top-color: @text_dimmer@; }
+QComboBox QAbstractItemView {
+    background-color: @bg_card@;
+    color: @text_primary@;
+    border: 1px solid @border_subtle@;
+    selection-background-color: @bg_selected@;
+    outline: 0;
+}
+
+QSpinBox::up-button, QSpinBox::down-button,
+QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {
+    background-color: @btn_default@;
+    border-left: 1px solid @border_subtle@;
+    width: 18px;
+}
+QSpinBox::up-button:hover, QSpinBox::down-button:hover,
+QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {
+    background-color: @btn_hover@;
+}
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    image: none; width: 0; height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 5px solid @text_secondary@;
+}
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    image: none; width: 0; height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid @text_secondary@;
+}
+
+/* ---- checks and radios -------------------------------------------------- */
+/* No images: a checked box is a box filled with the accent, a group that is
+ * only partly selected (the package tree) is filled with the dim text tone. */
+
+QCheckBox, QRadioButton { background: transparent; spacing: 8px; }
+QCheckBox:disabled, QRadioButton:disabled { color: @text_dimmer@; }
+
+QCheckBox::indicator, QRadioButton::indicator, QGroupBox::indicator,
+QAbstractItemView::indicator {
+    width: 15px; height: 15px;
+    background-color: @bg_input@;
+    border: 1px solid @border_subtle@;
+    border-radius: 3px;
+}
+QRadioButton::indicator { border-radius: 8px; }
+QCheckBox::indicator:hover, QRadioButton::indicator:hover,
+QAbstractItemView::indicator:hover {
+    border-color: @accent_blue@;
+}
+QCheckBox::indicator:checked, QRadioButton::indicator:checked,
+QGroupBox::indicator:checked, QAbstractItemView::indicator:checked {
+    background-color: @accent_blue@;
+    border-color: @accent_blue@;
+}
+QCheckBox::indicator:indeterminate, QAbstractItemView::indicator:indeterminate {
+    background-color: @text_dim@;
+    border-color: @accent_blue@;
+}
+QCheckBox::indicator:disabled, QRadioButton::indicator:disabled,
+QAbstractItemView::indicator:disabled {
+    background-color: @bg_card@;
+    border-color: @divider@;
+}
+
+/* ---- lists and trees ---------------------------------------------------- */
+
+QAbstractItemView {
+    background-color: @bg_card@;
+    alternate-background-color: @bg_card_hover@;
+    color: @text_primary@;
+    border: 1px solid @border_subtle@;
+    border-radius: 4px;
+    selection-background-color: @bg_selected@;
+    selection-color: @text_primary@;
+    outline: 0;
+}
+QAbstractItemView::item { min-height: 22px; }
+QAbstractItemView::item:hover { background-color: @bg_card_hover@; }
+/* Some palettes keep bg_selected within a shade of the row colour, so the
+ * selected row is also ruled above and below in the accent: it stays visible
+ * in every family, and the rule runs across every column of a tree. */
+QAbstractItemView::item:selected,
+QAbstractItemView::item:selected:!active {
+    background-color: @bg_selected@;
+    color: @text_primary@;
+    border-top: 1px solid @accent_blue@;
+    border-bottom: 1px solid @accent_blue@;
+}
+QHeaderView::section {
+    background-color: @bg_sidebar@;
+    color: @text_secondary@;
+    border: none;
+    border-bottom: 1px solid @divider@;
+    padding: 4px 6px;
+}
+QScrollArea { border: none; }
+#scrollAreaWidgetContents { background-color: @bg_primary@; }
+
+/* ---- progress ----------------------------------------------------------- */
+
+QProgressBar {
+    background-color: @bg_progress@;
+    color: @text_primary@;
+    border: 1px solid @border_subtle@;
+    border-radius: 4px;
+    text-align: center;
+    min-height: 18px;
+}
+QProgressBar::chunk {
+    background-color: @accent_progress@;
+    border-radius: 3px;
+}
+
+QSlider::groove:horizontal {
+    background-color: @bg_progress@;
+    height: 6px;
+    border-radius: 3px;
+}
+QSlider::sub-page:horizontal { background-color: @accent_progress@; border-radius: 3px; }
+QSlider::handle:horizontal {
+    background-color: @accent_blue@;
+    width: 14px;
+    margin: -4px 0;
+    border-radius: 7px;
+}
+QSlider::handle:horizontal:hover { background-color: @text_primary@; }
+
+/* ---- scrollbars --------------------------------------------------------- */
+
+QScrollBar:vertical   { background: @bg_primary@; width: 12px; margin: 0; border: none; }
+QScrollBar:horizontal { background: @bg_primary@; height: 12px; margin: 0; border: none; }
+QScrollBar::handle:vertical   { background: @btn_pressed@; min-height: 24px; border-radius: 5px; margin: 2px; }
+QScrollBar::handle:horizontal { background: @btn_pressed@; min-width: 24px; border-radius: 5px; margin: 2px; }
+QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover { background: @text_dimmer@; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; background: none; border: none; }
+QScrollBar::add-page, QScrollBar::sub-page { background: none; }
+
+/* ---- containers --------------------------------------------------------- */
+
+QGroupBox {
+    border: 1px solid @divider@;
+    border-radius: 4px;
+    margin-top: 14px;
+    padding-top: 6px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 8px;
+    padding: 0 4px;
+    color: @text_secondary@;
+}
+QFrame[frameShape="4"], QFrame[frameShape="5"] { color: @divider@; }
+QSplitter::handle { background-color: @divider@; }
+
+QTabWidget::pane { border: 1px solid @border_subtle@; border-radius: 4px; }
+QTabBar::tab {
+    background-color: @btn_default@;
+    color: @text_secondary@;
+    border: 1px solid @border_subtle@;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    padding: 6px 12px;
+    margin-right: 2px;
+}
+QTabBar::tab:hover    { background-color: @btn_hover@; }
+QTabBar::tab:selected { background-color: @bg_primary@; color: @text_primary@; }
+
+QMenu { background-color: @bg_card@; border: 1px solid @border_subtle@; }
+QMenu::item { padding: 5px 20px; }
+QMenu::item:selected { background-color: @bg_selected@; }
+QMenu::separator { height: 1px; background: @divider@; margin: 4px 8px; }
+
+/* ---- Calamares' own parts ---------------------------------------------- */
+
+#partitionBarView { background-color: @bg_card@; border: 1px solid @border_subtle@; border-radius: 4px; }
+#licenseItem {
+    background-color: @bg_card@;
+    border: 1px solid @border_subtle@;
+    border-radius: 4px;
+    padding: 8px;
+}
+#licenseItemFullText { background-color: @bg_input@; }
+#welcomeLogo, #qml, #slideshow { background: transparent; }

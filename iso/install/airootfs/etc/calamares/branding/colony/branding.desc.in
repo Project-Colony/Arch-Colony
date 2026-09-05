@@ -1,10 +1,10 @@
-# Arch Colony installer branding.
+# Arch Colony installer branding — a template.
 #
-# Strings and logo only. There is deliberately no `style:` block: Calamares styles
-# the sidebar with hardcoded hex values, and principe 4 forbids writing a colour
-# anywhere but the token source in Project-Colony-Resources. Until colony-tokens
-# grows a Calamares target, the installer wears Calamares' own default palette —
-# which is honest, rather than a second place where Colony's colours are defined.
+# No colour is written in this repository (principe 4). The four the sidebar
+# needs are named below as palette fields (@bg_sidebar@, ...) and filled in by
+# iso/build.sh from Project-Colony-Resources' generated/themes.json, through
+# tools/resolve-theme.py. The rest of the installer is styled the same way by
+# stylesheet.qss.in next to this file, which Calamares loads as stylesheet.qss.
 #
 # logo.png is vendored from Colony/assets/icons/icon.png for the same reason it is
 # a problem: shared assets belong in Project-Colony-Resources, and there is no asset
@@ -43,15 +43,15 @@ images:
 slideshow:    "show.qml"
 slideshowAPI: 2
 
-# Calamares requires this block — omitting it is fatal:
+# Also not optional — omitting the block is fatal:
 #   WARNING: YAML error  invalid node; first invalid key: "style"
 #
-# So the colours cannot be avoided. They are NOT written here: iso/build.sh
-# substitutes them from Project-Colony-Resources' generated/themes.json, variant
-# stellar_blade/lily. This file is a template (.in) precisely so that no hex value
-# is ever stored in this repository — principe 4 holds.
+# These four are the only colours Calamares 3.4 reads from this file: the step
+# list in the widget sidebar. The current step is drawn inverted on the family
+# accent; the others sit in the secondary text tone, so the current one reads
+# as the current one.
 style:
-    SidebarBackground:        "@SIDEBAR_BG@"
-    SidebarText:              "@SIDEBAR_TEXT@"
-    SidebarBackgroundCurrent: "@SIDEBAR_BG_CURRENT@"
-    SidebarTextCurrent:       "@SIDEBAR_TEXT_CURRENT@"
+    SidebarBackground:        "@bg_sidebar@"
+    SidebarText:              "@text_secondary@"
+    SidebarBackgroundCurrent: "@accent_blue@"
+    SidebarTextCurrent:       "@bg_primary@"

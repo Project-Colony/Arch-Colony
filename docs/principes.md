@@ -69,6 +69,14 @@ que `Project-Colony-Resources` a été créé pour résoudre — SphereCord qui 
 **Conséquence pratique.** Ajouter une cible au générateur `colony-tokens` est du travail
 en amont, dans `Project-Colony-Resources`. C'est voulu.
 
+**L'installateur suit la règle par un autre chemin.** Il n'a pas de cible de générateur :
+ses fichiers de branding Calamares sont des gabarits (`branding.desc.in`, `stylesheet.qss.in`,
+`show.qml.in`) où chaque couleur est le *nom* d'un champ de `generated/themes.json`, écrit
+`@bg_primary@`, `@accent_blue@`… `iso/build.sh` les résout à la construction de l'ISO par
+`tools/resolve-theme.py`, et un nom qui n'existe pas dans la palette fait échouer la
+construction — Qt, lui, ignorerait la règle sans un mot. `COLONY_THEME=famille/variante`
+change de palette sans toucher à un fichier ; le défaut est `stellar_blade/lily`.
+
 ## 5. Un durcissement invisible est un durcissement qui sera désactivé
 
 Toute protection livrée par défaut doit être observable et réversible : l'utilisateur doit

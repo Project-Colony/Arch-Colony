@@ -4,6 +4,9 @@
 #   ./iso/build.sh            build the "base" profile
 #   ./iso/build.sh hyprland   build another profile
 #
+# COLONY_THEME=family/variant picks the palette (default stellar_blade/lily);
+# see Project-Colony-Resources/generated/themes.json for the choices.
+#
 # Requires the packages in repo/out (run repo/build.sh first) and the Colony key
 # in this machine's pacman keyring, since the profile verifies [colony] at its
 # strictest.
@@ -59,7 +62,10 @@ sed -i "s|@COLONY_REPO@|$REPO_URL|g" "$STAGE/pacman.conf"
 # Colours come from the token system, never from a file in this repository
 # (principe 4). Any *.in under the staged profile is filled in here from
 # Project-Colony-Resources' generated artifact — the same artifact every other
-# Colony program consumes, rather than a second copy of the palette.
+# Colony program consumes, rather than a second copy of the palette. A template
+# names palette fields directly (@bg_primary@, @accent_blue@, ...), and an
+# unknown name fails the build rather than shipping unstyled; see
+# tools/resolve-theme.py. COLONY_THEME=family/variant picks another palette.
 shopt -s nullglob globstar
 templates=("$STAGE"/**/*.in)
 shopt -u nullglob globstar
@@ -72,31 +78,8 @@ if (( ${#templates[@]} )); then
 		exit 1
 	}
 	echo "==> resolving theme tokens from $THEMES"
-	eval "$(python3 - "$THEMES" <<'PY'
-import json, sys
-d = json.load(open(sys.argv[1]))
-pal = next(v['palette'] for f in d['families'] if f.get('key') == 'stellar_blade'
-           for v in f['variants'] if v.get('key') == 'lily')
-def need(k):
-    v = pal.get(k)
-    if not v:
-        sys.exit(f"palette field '{k}' missing from the generated tokens")
-    return v
-print(f"SIDEBAR_BG={need('bg_primary')}")
-print(f"SIDEBAR_TEXT={need('text_primary')}")
-print(f"SIDEBAR_BG_CURRENT={need('accent_icon')}")
-print(f"SIDEBAR_TEXT_CURRENT={need('bg_primary')}")
-PY
-	)"
-	for t in "${templates[@]}"; do
-		sed -e "s|@SIDEBAR_BG@|$SIDEBAR_BG|g" \
-		    -e "s|@SIDEBAR_TEXT@|$SIDEBAR_TEXT|g" \
-		    -e "s|@SIDEBAR_BG_CURRENT@|$SIDEBAR_BG_CURRENT|g" \
-		    -e "s|@SIDEBAR_TEXT_CURRENT@|$SIDEBAR_TEXT_CURRENT|g" \
-		    "$t" > "${t%.in}"
-		rm -f "$t"
-		echo "    ${t#"$STAGE/"} -> ${t%.in}" | sed "s|$STAGE/||g"
-	done
+	python3 "$ROOT/tools/resolve-theme.py" "$THEMES" "${COLONY_THEME:-stellar_blade/lily}" \
+		"${templates[@]}" | sed "s|$STAGE/||g"
 fi
 
 # The installer's package tree is generated, not committed: it carries every

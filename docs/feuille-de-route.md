@@ -93,6 +93,9 @@ auto-générée. L'écart à combler est donc l'habillage et l'intégration, pas
 marche. Deux défauts connus à traiter ici : la disposition clavier de SDDM (son greeter
 Wayland ne lit pas `/etc/X11/xorg.conf.d/`, il lui faut sa propre configuration), et
 l'absence de thème Colony sur le greeter comme sur la session.
+L'installateur, lui, porte déjà la palette depuis le 2026-09-05 : feuille de style
+Calamares et diaporama résolus depuis `themes.json` à la construction de l'ISO
+([principe 4](principes.md#4-une-couleur-ne-sécrit-quune-fois)).
 
 - `colony-desktop-hyprland`, issu de `hyprland-colony` empaqueté
   ([ADR-0007](decisions/0007-configuration-en-paquets.md))
