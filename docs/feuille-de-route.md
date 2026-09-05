@@ -76,6 +76,13 @@ Les plus coûteux, par ordre de gravité :
 **Ce que ça enseigne pour la suite :** un ISO qui se construit ne prouve rien, et une revue
 de code trouve ce qu'une relecture ne trouve pas. Les deux revues ont été rentables.
 
+**Appliqué le 2026-09-05.** `iso-2026.09.05` est la première image installée de bout en bout
+*avant* publication : VM sans écran pilotée au clavier, installation Hyprland + SDDM jusqu'à
+« Terminé », démarrage sur SDDM, session Hyprland, pare-feu actif avec ses règles semées. Deux
+défauts n'ont été trouvés que par ce passage — le contrôle de session livré sans bit d'exécution
+(`profiledef.sh`) et un cadre blanc autour du diaporama — et auraient fait échouer l'installation
+réelle suivante après formatage du disque.
+
 **Toujours pas vérifié** : `CONFIG_DEBUG_INFO_BTF` dans `linux-hardened`
 ([ADR-0004](decisions/0004-noyau-linux-hardened.md)). Le noyau démarre et installe, donc
 l'ADR tient en pratique — mais la question eBPF pour CFC reste ouverte.
