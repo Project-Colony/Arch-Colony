@@ -40,8 +40,9 @@ fi
 # A greeter is installed but none won the alias — enable one rather than leave
 # the machine unusable. Preference order matches shellprocess_services.conf.
 for unit in sddm gdm lightdm plasmalogin cosmic-greeter ly@tty1 greetd; do
-	base=${unit%@*}
-	[[ -f $ROOT/usr/lib/systemd/system/$base.service ]] || continue
+	# An instance (ly@tty1) is backed by a template file (ly@.service).
+	file=${unit%%@*}; [[ $unit == *@* ]] && file+=@; file+=.service
+	[[ -f $ROOT/usr/lib/systemd/system/$file ]] || continue
 	echo "no login screen was enabled; enabling $unit"
 	arch-chroot "$ROOT" systemctl enable --force "$unit" || continue
 	[[ -L $ROOT/etc/systemd/system/display-manager.service ]] && exit 0
@@ -58,8 +59,8 @@ a desktop without one leaves you at a login: prompt that looks like a failure.
 Nothing here can be repaired without a greeter on the disk, so the install is
 stopped rather than finished into something unusable.
 
-Go back, tick one under "Écran de connexion" — SDDM suits every desktop offered
-— and install again.
+Start the installer again and tick one under "Écran de connexion" — SDDM suits
+every desktop offered.
 
 MSG
 exit 1

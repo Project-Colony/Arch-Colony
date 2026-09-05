@@ -66,8 +66,14 @@ sed -i "s|@COLONY_REPO@|$REPO_URL|g" "$STAGE/pacman.conf"
 # names palette fields directly (@bg_primary@, @accent_blue@, ...), and an
 # unknown name fails the build rather than shipping unstyled; see
 # tools/resolve-theme.py. COLONY_THEME=family/variant picks another palette.
+#
+# Only under etc/calamares. The profile carries archiso's own
+# usr/local/share/livecd-sound/asound.conf.in, which the livecd-sound script
+# fills in itself at boot; an earlier `**/*.in` here renamed it away, and the
+# live medium has had no ALSA configuration since — quietly, since the script
+# tolerates the missing file.
 shopt -s nullglob globstar
-templates=("$STAGE"/**/*.in)
+templates=("$STAGE"/airootfs/etc/calamares/**/*.in)
 shopt -u nullglob globstar
 if (( ${#templates[@]} )); then
 	RESOURCES="${COLONY_RESOURCES:-$ROOT/../Project-Colony-Resources}"
