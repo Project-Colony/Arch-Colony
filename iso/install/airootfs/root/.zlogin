@@ -64,7 +64,11 @@ if [[ -z $WAYLAND_DISPLAY && $XDG_VTNR == 1 ]]; then
     # GPU, and an installer that starts slowly beats one that does not start.
     # Trying acceleration first costs one failed launch on the machines that need
     # the fallback, and nothing at all on the ones that do not.
-    LIBSEAT_BACKEND=logind cage -- calamares
+    # Calamares is the only window and cage keeps it full-screen, so the
+    # client-side title bar Qt draws under Wayland (a grey "Arch Colony
+    # Installer" strip with dead minimise/maximise/close buttons) is the one
+    # part of the screen the stylesheet cannot reach. Qt drops it on request.
+    LIBSEAT_BACKEND=logind QT_WAYLAND_DISABLE_WINDOWDECORATION=1 cage -- calamares
     _colony_rc=$?
 
     if (( _colony_rc != 0 )); then
@@ -73,7 +77,7 @@ if [[ -z $WAYLAND_DISPLAY && $XDG_VTNR == 1 ]]; then
         print "Nouvelle tentative en rendu logiciel — c'est plus lent, pas moins fiable."
         print
         LIBSEAT_BACKEND=logind WLR_RENDERER=pixman LIBGL_ALWAYS_SOFTWARE=1 \
-            cage -- calamares
+            QT_WAYLAND_DISABLE_WINDOWDECORATION=1 cage -- calamares
         _colony_rc=$?
     fi
 
