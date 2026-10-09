@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, ci/package-and-tooling-checks]
   pull_request:
 
 permissions: {}
@@ -136,7 +136,7 @@ jobs:
         env:
           # A pull request is checked out as a merge commit whose first parent is
           # its base; a push compares with what main held before it.
-          BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
+          BASE: 4b825dc642cb6eb9a060e54bf8d69288fbee4904
         run: |
           mapfile -t changed < <(git diff --name-only "$BASE" HEAD -- packages/ | cut -d/ -f2 | sort -u)
           dirs=()
