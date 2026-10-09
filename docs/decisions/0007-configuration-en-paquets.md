@@ -1,6 +1,6 @@
-# ADR-0007 — Toute configuration est livrée comme paquet
+# ADR-0007 - Toute configuration est livrée comme paquet
 
-**Statut** : acceptée — 2026-08-19
+**Statut** : acceptée - 2026-08-19
 
 ## Contexte
 
@@ -33,5 +33,5 @@ qui ne contiennent que des fichiers texte. C'est le prix d'un système désinsta
 Cas particulier des fichiers utilisateur : un paquet ne peut pas écrire dans `/home`. La
 configuration de session est livrée dans `/etc/skel` pour les nouveaux comptes, et dans
 `/usr/share/colony/` comme référence pour les comptes existants. Le mécanisme qui propose à
-un utilisateur existant d'adopter une nouvelle version de la configuration reste à concevoir —
+un utilisateur existant d'adopter une nouvelle version de la configuration reste à concevoir -
 il ne doit en aucun cas écraser silencieusement.

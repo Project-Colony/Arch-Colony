@@ -1,7 +1,7 @@
 # Maintainer: MotherSphere <linhajahad@gmail.com>
 # Upstream PKGBUILD by Morgan <morganamilo@archlinux.org>, packaged from the AUR.
 #
-# paru is not in Arch's repositories — only in the AUR — so Arch Colony packages it.
+# paru is not in Arch's repositories - only in the AUR - so Arch Colony packages it.
 # It does not exist upstream, so this does not violate ADR-0002.
 #
 # Worth being precise about what this is: paru does NOT replace pacman. It wraps it,
@@ -9,7 +9,7 @@
 # remains the package manager; paru is a convenience, and one that nearly every Arch
 # derivative ships.
 #
-# arch is x86_64 only here — upstream lists seven architectures, we target one
+# arch is x86_64 only here - upstream lists seven architectures, we target one
 # (see docs/feuille-de-route.md, other architectures are not planned).
 
 pkgname=paru

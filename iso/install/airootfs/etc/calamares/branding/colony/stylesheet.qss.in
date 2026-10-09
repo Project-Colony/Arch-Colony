@@ -1,4 +1,4 @@
-/* Arch Colony installer stylesheet — a template.
+/* Arch Colony installer stylesheet - a template.
  *
  * Every colour is a palette field name between at-signs, filled in at ISO build time
  * from Project-Colony-Resources/generated/themes.json (tools/resolve-theme.py).

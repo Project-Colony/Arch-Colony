@@ -13,7 +13,7 @@ pkgbase = colony-firewall-control
 	sha256sums = aa7ddcd519a89bb42662b0584b68ec3e3e86d1dbb289092b2a6633061813d7b7
 
 pkgname = colony-firewall-control
-	pkgdesc = Per-application firewall for Colony — daemon, CLI and UI
+	pkgdesc = Per-application firewall for Colony: daemon, CLI and UI
 	install = colony-firewall-control.install
 	depends = gcc-libs
 	depends = glibc
@@ -27,7 +27,7 @@ pkgname = colony-firewall-control
 	backup = etc/colony-firewall/daemon.toml
 
 pkgname = colony-firewall-control-ebpf
-	pkgdesc = Colony Firewall Control — kernel-side eBPF object
+	pkgdesc = Colony Firewall Control: kernel-side eBPF object
 	options = !strip
 	options = !debug
 	options = !lto

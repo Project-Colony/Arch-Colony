@@ -1,6 +1,6 @@
-# ADR-0005 — Deux éditions : Hyprland et KDE Plasma
+# ADR-0005 - Deux éditions : Hyprland et KDE Plasma
 
-**Statut** : acceptée — 2026-08-19
+**Statut** : acceptée - 2026-08-19
 
 ## Contexte
 
@@ -14,8 +14,8 @@ fichier, ce qui restreint fortement le public.
 Deux éditions, produisant deux ISO depuis des profils `archiso` partageant tout ce qui peut
 l'être :
 
-- **Hyprland** — l'édition d'identité, dérivée de `hyprland-colony`.
-- **KDE Plasma** — l'édition complète, thémable proprement via Qt.
+- **Hyprland** - l'édition d'identité, dérivée de `hyprland-colony`.
+- **KDE Plasma** - l'édition complète, thémable proprement via Qt.
 
 Les deux installent le même `colony-base` et se distinguent uniquement par leur méta-paquet
 de bureau.
@@ -27,14 +27,14 @@ Hyprland/waybar d'un côté, les thèmes Qt/Plasma de l'autre. Conformément au
 [principe 4](../principes.md#4-une-couleur-ne-sécrit-quune-fois), les deux sont des sorties
 du générateur de `Project-Colony-Resources`, pas des fichiers écrits à la main.
 
-Le coût réel n'est pas la construction des deux ISO — c'est le test des deux. Toute
+Le coût réel n'est pas la construction des deux ISO - c'est le test des deux. Toute
 fonctionnalité système touchant la session doit être validée deux fois.
 
 `hyprland-colony` devient `colony-desktop-hyprland`, un paquet, conformément à
 [ADR-0007](0007-configuration-en-paquets.md). Le dépôt d'origine reste utilisable hors
 d'Arch Colony ; seul l'empaquetage change.
 
-## Point ouvert — Colony Shell
+## Point ouvert : Colony Shell
 
 L'organisation Project-Colony conserve `noctalia-shell-archive` (« base du futur Colony
 Shell ») et `noctalia-qs-archive`, son fork de Quickshell. Si un Colony Shell voit le jour
@@ -42,14 +42,14 @@ sur cette base, l'édition Hyprland devrait le viser plutôt qu'un assemblage
 waybar/rofi qui serait remplacé ensuite.
 
 Décision reportée au 2026-08-19 : trop tôt, Colony Shell n'a pas encore de forme. La
-conséquence sur J3 est de **structurer sans enfermer** — la configuration de session reste
+conséquence sur J3 est de **structurer sans enfermer** - la configuration de session reste
 un paquet séparable de `colony-desktop-hyprland`, pour que remplacer la barre et le
 lanceur ne demande pas de défaire le reste de l'édition.
 
 ## Alternatives écartées
 
-- **Hyprland seul** — l'option la plus économique, écartée parce qu'elle réduit la
+- **Hyprland seul** - l'option la plus économique, écartée parce qu'elle réduit la
   distribution à un public déjà capable de se la construire.
-- **Plasma seul** — n'exploite pas le travail existant et efface l'identité visuelle.
-- **GNOME** — le plus difficile à thémer proprement et le plus éloigné des conventions de
+- **Plasma seul** - n'exploite pas le travail existant et efface l'identité visuelle.
+- **GNOME** - le plus difficile à thémer proprement et le plus éloigné des conventions de
   l'écosystème.

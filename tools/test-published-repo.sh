@@ -19,7 +19,7 @@ SERVER="${COLONY_SERVER:-https://github.com/Project-Colony/Arch-Colony/releases/
 # the package whose whole reason for existing is that it reaches the machine.
 WANT="${1:-colony-firewall-control-ebpf}"
 
-: "${COLONY_SIGNING_KEY:?not set — see repo/genkey.sh}"
+: "${COLONY_SIGNING_KEY:?not set - see repo/genkey.sh}"
 
 echo "==> server: $SERVER"
 
@@ -71,11 +71,11 @@ if [[ $WANT == colony-firewall-control-ebpf ]]; then
 	file "$obj" | sed 's/^.*: /    /'
 	readelf -S --wide "$obj" | grep -E '\.BTF' | sed 's/^/    /'
 	readelf -S --wide "$obj" | grep -q '\.BTF' || {
-		echo "FAIL: the delivered object has no .BTF — CO-RE would misresolve" >&2
+		echo "FAIL: the delivered object has no .BTF - CO-RE would misresolve" >&2
 		exit 1
 	}
 fi
 
 echo
-echo "PASS — published database verified over HTTPS, package signature verified,"
+echo "PASS - published database verified over HTTPS, package signature verified,"
 echo "       trust established from colony-keyring alone."

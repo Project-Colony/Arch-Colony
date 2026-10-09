@@ -21,7 +21,7 @@ package() {
 	#
 	# Appended at the end rather than inserted before [core]. Position carries no
 	# functional weight here precisely because ADR-0002 guarantees no package in
-	# [colony] shares a name with one in core/extra/multilib — there is nothing for
+	# [colony] shares a name with one in core/extra/multilib - there is nothing for
 	# an earlier declaration to win. Inserting mid-file would mean editing a
 	# user-editable config with a regex, which is how installers corrupt pacman.conf.
 	install -Dm644 colony-repo.conf "$pkgdir/usr/share/colony/pacman/colony-repo.conf"

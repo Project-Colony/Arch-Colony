@@ -1,6 +1,6 @@
-# ADR-0002 — Règle de non-recouvrement
+# ADR-0002 - Règle de non-recouvrement
 
-**Statut** : acceptée — 2026-08-19
+**Statut** : acceptée - 2026-08-19
 **Portée** : contraint toutes les décisions suivantes
 
 ## Contexte
@@ -16,7 +16,7 @@ exception paraît justifiée localement. Il faut une règle qui rende l'exceptio
 
 Pas de `provides`/`replaces` visant un paquet du socle. Pas de `IgnorePkg`. Pas d'épinglage
 de version. Si une fonctionnalité exige de remplacer un paquet de base, elle ne va pas dans
-`[colony]` — elle va dans un dépôt séparé, désactivé par défaut, dont l'activation est un
+`[colony]` - elle va dans un dépôt séparé, désactivé par défaut, dont l'activation est un
 acte délibéré de l'utilisateur.
 
 ## Conséquences

@@ -3,14 +3,14 @@
 # CFC starts with no rules, and its outbound chain is fail-closed: a machine
 # that loads the table before any rule exists refuses DNS, DHCP, NTP and pacman,
 # which looks exactly like a broken network. The `system` bundle is the twelve
-# rules that answer that — resolved, timesyncd, chrony, dhcpcd, NetworkManager
+# rules that answer that - resolved, timesyncd, chrony, dhcpcd, NetworkManager
 # and networkd in v4 and v6, pacman, paru, and the ssh client.
 #
 # Ordered between the daemon and the table, so the three always happen in the
 # only order that is safe: daemon up, rules in, table loaded.
 #
-# `cfc rules bootstrap-defaults` is idempotent — bundle_add counts what is
-# already present and skips it — so this runs on every boot without a stamp file
+# `cfc rules bootstrap-defaults` is idempotent - bundle_add counts what is
+# already present and skips it - so this runs on every boot without a stamp file
 # and without a state directory to go stale.
 
 [Unit]

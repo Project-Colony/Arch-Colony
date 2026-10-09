@@ -1,7 +1,7 @@
 # Principes
 
-Ce document est la pensée d'Arch Colony. Il ne décrit pas ce qu'on construit — c'est le
-rôle de [`modele.md`](modele.md) — mais ce à quoi on refuse de toucher, et pourquoi.
+Ce document est la pensée d'Arch Colony. Il ne décrit pas ce qu'on construit - c'est le
+rôle de [`modele.md`](modele.md) - mais ce à quoi on refuse de toucher, et pourquoi.
 
 Une distribution ne meurt pas d'un mauvais choix technique. Elle meurt d'une dette de
 maintenance contractée un jour où quelqu'un a trouvé qu'une exception était raisonnable.
@@ -37,7 +37,7 @@ et ne se remarquent qu'au bout de plusieurs mois.
 
 **Conséquence pratique.** C'est ce principe, et non une préférence esthétique, qui rend
 SELinux coûteux : SELinux *exige* de recouvrir la base. Voir
-[ADR-0003](decisions/0003-lsm-par-etapes.md) — la décision d'y aller par étapes découle de
+[ADR-0003](decisions/0003-lsm-par-etapes.md) - la décision d'y aller par étapes découle de
 la règle d'or, elle n'en est pas indépendante.
 
 ## 3. Toute configuration est un paquet
@@ -63,7 +63,7 @@ système : Plymouth, le greeter, GTK, Qt, la palette de console et la configurat
 sont des cibles du générateur, pas des fichiers écrits à la main.
 
 Écrire un hexadécimal en dur dans un thème Plymouth, c'est recréer exactement le problème
-que `Project-Colony-Resources` a été créé pour résoudre — SphereCord qui téléchargeait le
+que `Project-Colony-Resources` a été créé pour résoudre - SphereCord qui téléchargeait le
 `theme.rs` de Colony pour le parser à la regex.
 
 **Conséquence pratique.** Ajouter une cible au générateur `colony-tokens` est du travail
@@ -74,14 +74,14 @@ ses fichiers de branding Calamares sont des gabarits (`branding.desc.in`, `style
 `show.qml.in`) où chaque couleur est le *nom* d'un champ de `generated/themes.json`, écrit
 `@bg_primary@`, `@accent_blue@`… `iso/build.sh` les résout à la construction de l'ISO par
 `tools/resolve-theme.py`, et un nom qui n'existe pas dans la palette fait échouer la
-construction — Qt, lui, ignorerait la règle sans un mot. `COLONY_THEME=famille/variante`
+construction - Qt, lui, ignorerait la règle sans un mot. `COLONY_THEME=famille/variante`
 change de palette sans toucher à un fichier ; le défaut est `stellar_blade/lily`.
 
 ## 5. Un durcissement invisible est un durcissement qui sera désactivé
 
 Toute protection livrée par défaut doit être observable et réversible : l'utilisateur doit
 pouvoir savoir qu'elle est active, voir ce qu'elle a bloqué, et la lever sans réinstaller.
-Une protection qui casse quelque chose en silence n'apprend rien à personne — elle apprend
+Une protection qui casse quelque chose en silence n'apprend rien à personne - elle apprend
 seulement à désactiver la sécurité en bloc, ce qui est pire que de ne rien avoir livré.
 
 C'est la même logique que la doc de durcissement de CFC, qui recommande de repasser en
@@ -96,7 +96,7 @@ Un jalon d'Arch Colony est une chose qui démarre ou qui tourne. Pas un document
 schéma, pas une politique écrite mais jamais chargée. La feuille de route ne contient que
 des artefacts vérifiables sur une machine ou dans une VM.
 
-**Conséquence pratique.** Le jalon 1 n'est pas « l'architecture du dépôt » — c'est le plus
+**Conséquence pratique.** Le jalon 1 n'est pas « l'architecture du dépôt » - c'est le plus
 petit ISO qui démarre et se reconnaît comme Arch Colony.
 
 ---

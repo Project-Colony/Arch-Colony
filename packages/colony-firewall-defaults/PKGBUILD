@@ -10,11 +10,11 @@
 # What "on" has to mean, and why it is three units rather than one:
 #
 #   colony-firewalld        the daemon
-#   colony-firewall-seed    the `system` bundle — DNS, DHCP, NTP, pacman, ssh
+#   colony-firewall-seed    the `system` bundle - DNS, DHCP, NTP, pacman, ssh
 #   colony-firewall-nft     the fail-closed table, last
 #
 # Loading the table first gives a machine that refuses to resolve a name, renew
-# a lease or reach a mirror — indistinguishable from a broken network, and
+# a lease or reach a mirror - indistinguishable from a broken network, and
 # unrecoverable without typing `nft delete table` from memory. That is not
 # hypothetical: it happened twice on 2026-08-21, on the first machine this was
 # ever installed on.
@@ -22,7 +22,7 @@
 pkgname=colony-firewall-defaults
 pkgver=20260821
 pkgrel=1
-pkgdesc='Arch Colony defaults for Colony Firewall Control — enabled, seeded, inbound off'
+pkgdesc='Arch Colony defaults for Colony Firewall Control: enabled, seeded, inbound off'
 arch=('any')
 url='https://github.com/Project-Colony/Arch-Colony'
 license=('GPL-3.0-or-later')

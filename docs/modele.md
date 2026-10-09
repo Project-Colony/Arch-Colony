@@ -18,7 +18,7 @@ Comment Arch Colony est assemblé. Les principes qui justifient ces choix sont d
 │  2. OVERLAY       dépôt [colony]                                  │
 │                   uniquement ce qui n'existe pas en amont         │
 ├──────────────────────────────────────────────────────────────────┤
-│  1. SOCLE         [core] [extra] [multilib] — miroirs d'Arch      │
+│  1. SOCLE         [core] [extra] [multilib] - miroirs d'Arch      │
 │                   consommé tel quel, jamais reconstruit           │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -26,17 +26,17 @@ Comment Arch Colony est assemblé. Les principes qui justifient ces choix sont d
 Chaque couche ne dépend que de celles en dessous. Une image est une composition de profils,
 un profil est une composition de paquets, un paquet vient de l'overlay ou du socle.
 
-### Couche 1 — le socle
+### Couche 1 : le socle
 
 Les miroirs d'Arch, non modifiés. Notre `pacman.conf` les déclare exactement comme Arch les
 déclare, avec `archlinux-keyring` comme racine de confiance. Aucune priorité, aucun
 `IgnorePkg`, aucun épinglage.
 
-### Couche 2 — l'overlay `[colony]`
+### Couche 2 : l'overlay `[colony]`
 
 Un seul dépôt, déclaré **avant** `[core]` dans `pacman.conf`. Cette position ne sert pas à
-recouvrir quoi que ce soit — la [règle d'or](principes.md#2-loverlay-ne-recouvre-jamais-un-paquet-darch)
-l'interdit — elle sert à ce que nos méta-paquets résolvent leurs dépendances chez nous en
+recouvrir quoi que ce soit - la [règle d'or](principes.md#2-loverlay-ne-recouvre-jamais-un-paquet-darch)
+l'interdit - elle sert à ce que nos méta-paquets résolvent leurs dépendances chez nous en
 priorité lorsqu'un nom existe des deux côtés par accident.
 
 Le contenu se répartit en cinq familles :
@@ -49,7 +49,7 @@ Le contenu se répartit en cinq familles :
 | Amorçage | `colony-keyring`, `colony-mirrorlist` | La racine de confiance |
 | Système | `colony-hardening-sysctl`, `colony-nftables` | Politique système |
 
-### Couche 3 — les profils
+### Couche 3 : les profils
 
 Un profil est un méta-paquet sans contenu propre. Installer Arch Colony revient à installer
 `colony-base` plus une édition de bureau, éventuellement plus `colony-hardened`.
@@ -72,7 +72,7 @@ colony-hardened   (optionnel, opt-in)
 └── colony-hardening-profiles
 ```
 
-### Couche 4 — les images
+### Couche 4 : les images
 
 Deux profils `archiso`, partageant tout ce qui peut l'être. Un ISO n'ajoute rien qui ne
 soit pas empaqueté : il choisit des paquets et un `airootfs` minimal.
@@ -84,14 +84,15 @@ soit pas empaqueté : il choisit des paquets et un `airootfs` minimal.
 C'est la mécanique qui donne son nom à la relation avec Arch. Deux flux distincts, à ne pas
 confondre :
 
-**Flux descendant — les paquets.** Automatique et permanent : les miroirs d'Arch servent
+**Flux descendant - les paquets.** Automatique et permanent : les miroirs d'Arch servent
 directement les utilisateurs. Rien à faire de notre côté, c'est le bénéfice de la règle d'or.
 
-**Flux montant — les décisions.** Arch change parfois des choses qui nous concernent sans
+**Flux montant - les décisions.** Arch change parfois des choses qui nous concernent sans
 changer un paquet que nous livrons : un défaut de `mkinitcpio`, une bascule vers `dracut`,
-un changement dans la chaîne d'amorçage, un remplacement de `netctl`. Ce flux-là est
-surveillé, pas automatique. Un travail périodique lit les annonces d'Arch et ouvre un ticket
-quand une décision amont invalide une des nôtres.
+un changement dans la chaîne d'amorçage, un remplacement de `netctl`. Ce flux-là se
+surveille, il n'est pas automatique. La cible est un travail périodique qui lit les annonces
+d'Arch et ouvre un ticket quand une décision amont invalide une des nôtres ; il n'existe pas
+encore, et cette surveillance reste manuelle d'ici là.
 
 Le second flux est celui qu'on oublie, et c'est celui qui casse les dérivées.
 
@@ -129,7 +130,7 @@ interface stable (chemins, unités, sockets), et un manifeste `colony.json` conf
 de `Project-Colony-Resources`. Ce qu'il y a derrière ne nous regarde pas.
 
 Cette frontière a une conséquence directe sur le travail en cours : **CFC est une boîte
-noire.** On conçoit l'intégration contre son interface — un paquet, des unités, un socket —
+noire.** On conçoit l'intégration contre son interface - un paquet, des unités, un socket -
 et non contre son code source, qui bouge.
 
 ---
@@ -139,9 +140,8 @@ et non contre son code source, qui bouge.
 ```
 docs/          principes, modèle, décisions, feuille de route
 decisions/     un ADR par choix structurant, jamais réécrit, seulement remplacé
-packages/      un répertoire par paquet de [colony] — PKGBUILD et fichiers
+packages/      un répertoire par paquet de [colony] - PKGBUILD et fichiers
 iso/           profils archiso, un par édition
 repo/          construction, signature et publication du dépôt [colony]
-upstream/      surveillance des décisions d'Arch (le flux montant)
 tools/         outillage de développement
 ```

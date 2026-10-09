@@ -6,14 +6,14 @@
 # The name is not `colony`: that binary belongs to the ecosystem's application
 # launcher, whose package declares `provides=colony` and `conflicts=colony`, so
 # a package by that name here would make the launcher uninstallable and break
-# the J3 desktop. `colonyctl` follows systemd's convention — systemctl,
-# hostnamectl, machinectl — and was verified free in core/extra/multilib, in the
+# the J3 desktop. `colonyctl` follows systemd's convention - systemctl,
+# hostnamectl, machinectl - and was verified free in core/extra/multilib, in the
 # official file database, in the AUR, and across the Colony ecosystem.
 
 pkgname=colonyctl
 pkgver=20260821
 pkgrel=2
-pkgdesc='Arch Colony system control — updates, status, and the Colony firewall'
+pkgdesc='Arch Colony system control: updates, status, and the Colony firewall'
 arch=('any')
 url='https://github.com/Project-Colony/Arch-Colony'
 license=('GPL-3.0-or-later')

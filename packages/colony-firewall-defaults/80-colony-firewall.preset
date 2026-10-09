@@ -8,7 +8,7 @@ enable colony-firewall-nft.service
 
 # Inbound stays off, and this line is the point of writing it down rather than
 # leaving it absent. Enabling the inbound chain can strand a machine reached
-# over the network — its pre-flight guard admits a live session but does not
-# survive the next reboot — so it must remain something a person turns on
+# over the network - its pre-flight guard admits a live session but does not
+# survive the next reboot - so it must remain something a person turns on
 # knowingly, never something an install did to them.
 disable colony-firewall-nft-inbound.service

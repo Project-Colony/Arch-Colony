@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# colonyctl — the front door to an Arch Colony system.
+# colonyctl - the front door to an Arch Colony system.
 #
 # It delegates. `colonyctl update` is `pacman -Syu`, and that is the whole
 # design: [colony] is an ordinary pacman repository, so Colony packages arrive
@@ -16,7 +16,7 @@
 # execute a remote script as root. Each of those turns "my package manager
 # behaved oddly" into a question only this tool can answer. Anything that must
 # happen on upgrade belongs in an alpm hook, which fires under pacman, paru and
-# this script alike — a wrapper nobody remembers to type protects nobody.
+# this script alike - a wrapper nobody remembers to type protects nobody.
 
 set -uo pipefail
 
@@ -47,7 +47,7 @@ field() { printf '  %-22s %s\n' "$1" "$2"; }
 
 usage() {
 	cat <<EOF
-${B}$PROGRAM${R} — Arch Colony system control
+${B}$PROGRAM${R} - Arch Colony system control
 
   ${B}$PROGRAM update${R} [--aur]     update the system (pacman -Syu)
   ${B}$PROGRAM status${R}             what this machine is running, and what is protecting it
@@ -69,7 +69,7 @@ cmd_update() {
 			-S*|-R*|-Q*|-U*|-y*|-u*)
 				die "$1 is pacman's grammar, not this tool's. Use '$PROGRAM update', or pacman directly."
 				;;
-			*) die "unknown option '$1' — see '$PROGRAM help'" ;;
+			*) die "unknown option '$1' - see '$PROGRAM help'" ;;
 		esac
 		shift
 	done
@@ -111,7 +111,7 @@ cmd_status() {
 		server=$(pacman-conf --repo=colony Server 2>/dev/null | head -n1)
 		[[ -n $server ]] && field "server" "$server"
 	else
-		field "[colony]" "${WARN}not configured${R} — Colony packages will not update"
+		field "[colony]" "${WARN}not configured${R} - Colony packages will not update"
 	fi
 	local n
 	n=$(pacman -Qq 2>/dev/null | wc -l)
@@ -148,7 +148,7 @@ cmd_status() {
 	if [[ $target == graphical.target ]]; then
 		field "default target" "${OK}$target${R}"
 	else
-		field "default target" "${BAD}${target:-unknown}${R} — no greeter will start"
+		field "default target" "${BAD}${target:-unknown}${R} - no greeter will start"
 	fi
 	# The symlink is the truth: `systemctl enable` on a display manager rewrites
 	# it, so with two desktops installed it names whichever won.
@@ -161,7 +161,7 @@ cmd_status() {
 			field "display manager" "${WARN}$dm${R}, enabled but not running"
 		fi
 	else
-		field "display manager" "${BAD}none enabled${R} — the machine boots to a console"
+		field "display manager" "${BAD}none enabled${R} - the machine boots to a console"
 	fi
 	local greeters
 	greeters=$(pacman -Qq 2>/dev/null | grep -xE 'sddm|gdm|lightdm|greetd|ly|cosmic-greeter|plasma-login-manager' | tr '\n' ' ')
@@ -173,7 +173,7 @@ cmd_status() {
 	echo
 	echo "${B}firewall${R}"
 	if ! command -v cfc >/dev/null; then
-		field "Colony Firewall" "${DIM}not installed${R} — pacman -S colony-firewall-control"
+		field "Colony Firewall" "${DIM}not installed${R} - pacman -S colony-firewall-control"
 		return 0
 	fi
 	if systemctl is-active --quiet colony-firewalld.service 2>/dev/null; then
@@ -187,7 +187,7 @@ cmd_status() {
 	if [[ -f /usr/lib/colony-firewall/cfc-ebpf.o ]]; then
 		field "kernel object" "${OK}present${R}"
 	else
-		field "kernel object" "${BAD}missing${R} — enforcement cannot outlive the daemon"
+		field "kernel object" "${BAD}missing${R} - enforcement cannot outlive the daemon"
 	fi
 	# cfc knows its own enforcement level; ask it rather than guessing.
 	echo
@@ -208,9 +208,9 @@ main() {
 		version|--version) printf '%s %s\n' "$PROGRAM" "$VERSION" ;;
 		help|-h|--help)  usage ;;
 		-*)
-			die "'$verb' looks like pacman's grammar. This tool takes verbs — see '$PROGRAM help'."
+			die "'$verb' looks like pacman's grammar. This tool takes verbs - see '$PROGRAM help'."
 			;;
-		*) die "unknown command '$verb' — see '$PROGRAM help'" ;;
+		*) die "unknown command '$verb' - see '$PROGRAM help'" ;;
 	esac
 }
 

@@ -2,7 +2,7 @@
 # Generate the Arch Colony package signing key.
 #
 # Run this ONCE, ever. See docs/decisions/0008-chaine-de-confiance.md.
-# GnuPG will prompt for a passphrase — use a strong one and store it in a password
+# GnuPG will prompt for a passphrase - use a strong one and store it in a password
 # manager. There is no recovery if it is lost.
 
 set -euo pipefail
@@ -57,7 +57,7 @@ Two things to do NOW, before writing any other code:
      Then unplug it. This file is the project. Losing it means every user has to
      re-establish trust by hand.
 
-  2. Move repo/colony-revocation.asc off this machine too — it is the only way to
+  2. Move repo/colony-revocation.asc off this machine too - it is the only way to
      announce a compromise, and it is useless if it burns with the key.
 
 Then add to your shell environment so the build scripts find the key:

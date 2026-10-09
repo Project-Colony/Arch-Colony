@@ -7,7 +7,7 @@ installe.
 
 Un paquet n'entre ici que s'il **n'existe pas** dans `[core]`, `[extra]` ou `[multilib]`.
 Voir [ADR-0002](../docs/decisions/0002-regle-de-non-recouvrement.md). Les paquets qui
-recouvrent la base — la pile SELinux le jour venu — vont dans un dépôt séparé, pas ici.
+recouvrent la base - la pile SELinux le jour venu - vont dans un dépôt séparé, pas ici.
 
 ## Familles
 

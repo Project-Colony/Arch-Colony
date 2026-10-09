@@ -17,7 +17,7 @@ ROOT="$(dirname "$(realpath "$0")")/.."
 OUT="$ROOT/iso/out"
 GH_REPO="${COLONY_GH_REPO:-Project-Colony/Arch-Colony}"
 
-: "${COLONY_SIGNING_KEY:?not set — see repo/genkey.sh}"
+: "${COLONY_SIGNING_KEY:?not set - see repo/genkey.sh}"
 command -v gh >/dev/null || { echo "gh missing: pacman -S github-cli" >&2; exit 1; }
 
 ISO="${1:-}"
@@ -25,7 +25,7 @@ if [[ -z $ISO ]]; then
 	shopt -s nullglob
 	candidates=("$OUT"/*.iso)
 	shopt -u nullglob
-	(( ${#candidates[@]} )) || { echo "no image in $OUT — run iso/build.sh first" >&2; exit 1; }
+	(( ${#candidates[@]} )) || { echo "no image in $OUT - run iso/build.sh first" >&2; exit 1; }
 	if (( ${#candidates[@]} > 1 )); then
 		echo "several images in $OUT; name the one to publish:" >&2
 		printf '  %s\n' "${candidates[@]##*/}" >&2
@@ -39,7 +39,7 @@ fi
 NAME=$(basename "$ISO")
 # Matched, not sliced. `${NAME#*-}` then `%%-*` reads the date out of
 # archcolony-2026.08.21-x86_64.iso and reads "base" out of
-# archcolony-base-2026.08.20-x86_64.iso — one edition name is all it takes.
+# archcolony-base-2026.08.20-x86_64.iso - one edition name is all it takes.
 [[ $NAME =~ ([0-9]{4}\.[0-9]{2}\.[0-9]{2}) ]] || {
 	echo "cannot read a release date out of '$NAME'" >&2; exit 1; }
 DATE="${BASH_REMATCH[1]}"
@@ -48,13 +48,13 @@ TAG="iso-$DATE"
 
 assets=("$ISO")
 for extra in "$ISO.sig" "$ISO.sha256" "$ISO.sha256.sig"; do
-	[[ -f $extra ]] || { echo "missing $extra — rebuild with iso/build.sh, which signs" >&2; exit 1; }
+	[[ -f $extra ]] || { echo "missing $extra - rebuild with iso/build.sh, which signs" >&2; exit 1; }
 	assets+=("$extra")
 done
 
 # The signature is verified here rather than trusted, because the failure this
-# catches — publishing an image signed by a key nobody has, or not signed at all
-# because gpg-agent quietly declined — is invisible until a user reports it.
+# catches - publishing an image signed by a key nobody has, or not signed at all
+# because gpg-agent quietly declined - is invisible until a user reports it.
 echo "==> verifying before upload"
 gpg --verify "$ISO.sig" "$ISO" 2>&1 | sed 's/^/    /'
 ( cd "$OUT" && sha256sum -c "$NAME.sha256" ) | sed 's/^/    /'
@@ -65,14 +65,14 @@ gpg --verify "$ISO.sig" "$ISO" 2>&1 | sed 's/^/    /'
 size=$(stat -c %s "$ISO")
 limit=$((2 * 1024 * 1024 * 1024))
 # Integer arithmetic, not awk into %.2f: awk formats with the locale's decimal
-# separator, so on a French system it hands printf "1,68" and printf rejects it —
+# separator, so on a French system it hands printf "1,68" and printf rejects it -
 # non-zero exit, set -e, and the script dies just before uploading. Found the
 # hard way, on the first real run.
 gib100=$(( size * 100 / 1073741824 ))
 printf '    %s is %d.%02d GiB, %d%% of the 2 GiB asset ceiling\n' \
 	"$NAME" "$(( gib100 / 100 ))" "$(( gib100 % 100 ))" "$(( size * 100 / limit ))"
 (( size < limit )) || {
-	echo "too large for a GitHub release asset — object storage is the next step" >&2
+	echo "too large for a GitHub release asset - object storage is the next step" >&2
 	exit 1; }
 
 echo

@@ -1,7 +1,7 @@
 # Used in place of the generated package tree when the user declined network
 # access at boot. Everything on that page has to be downloaded, so offering it
 # would let someone tick twenty desktops and reach a green "Finished" page on a
-# machine with no desktop and no explanation — Calamares logs a failed install as
+# machine with no desktop and no explanation - Calamares logs a failed install as
 # a warning, not an error.
 #
 # A single hidden group rather than an empty document: netinstall wants a list of

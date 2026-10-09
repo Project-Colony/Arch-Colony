@@ -30,7 +30,7 @@ index 8c682f9..116a4c4 100644
 +ErrorDialog::appendDetails( const QString& text )
 +{
 +    // detailsBrowser is a QTextBrowser, so append() would interpret its argument
-+    // as rich text — exactly wrong for a log, which is full of angle brackets and
++    // as rich text - exactly wrong for a log, which is full of angle brackets and
 +    // ampersands. Going through plain text keeps it verbatim.
 +    const QString existing = ui->detailsBrowser->toPlainText();
 +    ui->detailsBrowser->setPlainText( existing.isEmpty() ? text : existing + QLatin1Char( '\n' ) + text );
@@ -99,8 +99,8 @@ index 28ca70f..8929b23 100644
 +    /** @brief Append the tail of the session log to the details box.
 +     *
 +     * Reading the log needs no network and leaves the machine alone, unlike the
-+     * web-paste button next to it. On an installer running as a kiosk — no
-+     * terminal, no VT switching — this is often the only way for a user to see
++     * web-paste button next to it. On an installer running as a kiosk - no
++     * terminal, no VT switching - this is often the only way for a user to see
 +     * why an install failed, and the only way for them to report it.
 +     */
 +    void showLogTail();

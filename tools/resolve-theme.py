@@ -5,8 +5,8 @@
 
 Every FILE.in is written next to itself without the suffix, with each @name@
 replaced by the palette field of that name from Project-Colony-Resources'
-generated/themes.json. A template names palette fields directly — @bg_primary@,
-@accent_blue@ — so there is no second vocabulary to keep in step with the
+generated/themes.json. A template names palette fields directly - @bg_primary@,
+@accent_blue@ - so there is no second vocabulary to keep in step with the
 artifact, and no colour is ever written down in this repository (principe 4).
 
 Nothing is written until every template has resolved. A token that names no

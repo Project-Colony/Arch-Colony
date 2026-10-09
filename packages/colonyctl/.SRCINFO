@@ -1,5 +1,5 @@
 pkgbase = colonyctl
-	pkgdesc = Arch Colony system control — updates, status, and the Colony firewall
+	pkgdesc = Arch Colony system control: updates, status, and the Colony firewall
 	pkgver = 20260821
 	pkgrel = 2
 	url = https://github.com/Project-Colony/Arch-Colony

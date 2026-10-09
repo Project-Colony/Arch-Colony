@@ -18,7 +18,7 @@ packages/<nom>/PKGBUILD
 
 **La clé de signature.** Elle est la racine de confiance de toute machine Arch Colony. Où
 vit la clé privée, qui y a accès, et comment on révoque en cas de compromission sont des
-questions à trancher **avant** le premier paquet publié — après, chaque utilisateur installé
+questions à trancher **avant** le premier paquet publié - après, chaque utilisateur installé
 est un coût de migration.
 
 **La construction en chroot propre.** Construire sur la machine de développement produit des
@@ -30,5 +30,5 @@ référence à suivre.
 
 ## Jalon
 
-C'est [J0](../docs/feuille-de-route.md#j0--le-dépôt-existe), le premier, précisément parce
+C'est [J0](../docs/feuille-de-route.md#j0--le-dépôt-existe---fait-le-2026-08-19), le premier, précisément parce
 qu'une erreur ici se paie par une réinstallation chez tout le monde.

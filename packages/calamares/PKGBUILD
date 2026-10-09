@@ -1,8 +1,8 @@
 # Maintainer: MotherSphere <linhajahad@gmail.com>
 # Based on the AUR package by Rustmilian <Rustmilian@proton.me>
 #
-# Calamares is not in Arch's repositories — not in core, extra, multilib, nor in
-# chaotic-aur — so Arch Colony packages it. It does not exist upstream, so this does
+# Calamares is not in Arch's repositories - not in core, extra, multilib, nor in
+# chaotic-aur - so Arch Colony packages it. It does not exist upstream, so this does
 # not violate ADR-0002. See the 2026-08-20 amendment to ADR-0006 for the standing
 # obligation this creates: Calamares is a Qt6/KF6 application and Arch's Qt and KDE
 # Frameworks updates will periodically break it, each time requiring a rebuild here
@@ -24,7 +24,7 @@ depends=(
 	'yaml-cpp'
 	# libcalamares.so links against libpython (readelf: NEEDED libpython3.14.so.1.0)
 	# and nine of the fifteen exec modules are main.py. None of the six deps above
-	# pulls python — verified with pactree. Without this, `pacman -S calamares` from
+	# pulls python - verified with pactree. Without this, `pacman -S calamares` from
 	# [colony] installs a binary that dies on "error while loading shared libraries".
 	# It only worked on the ISO by accident, because archinstall and reflector happen
 	# to pull python in.
@@ -51,24 +51,24 @@ prepare() {
 	cd "$pkgname-$pkgver"
 	# A downstream patch, carried only until upstream decides. netinstall has no
 	# search, which is fine for the ten-to-thirty curated entries every other
-	# distribution puts in it — and unusable for the >15000 packages Arch Colony
+	# distribution puts in it - and unusable for the >15000 packages Arch Colony
 	# offers, which is what archinstall presents and what this distribution is
 	# expected to match. Adds a QSortFilterProxyModel with recursive filtering
 	# and a search box; 48 lines.
 	#
 	# To be proposed to Calamares upstream. If it lands, delete this and the
-	# patch file — a downstream patch is only ever worth carrying while the
+	# patch file - a downstream patch is only ever worth carrying while the
 	# upstream conversation is open.
 	patch -p1 -i "$srcdir/0001-netinstall-add-a-search-filter.patch"
 
 	# The failure dialog offers to upload the log to a paste service and nothing
-	# else. On an installer that runs as a kiosk — no terminal, no VT switching,
-	# because cage takes the seat — that leaves a user who declined network access
+	# else. On an installer that runs as a kiosk - no terminal, no VT switching,
+	# because cage takes the seat - that leaves a user who declined network access
 	# with no way to see why the install failed, let alone report it. Adds a "Show
 	# log" button that pours the tail of session.log into the details box already
 	# present in that dialog. Local, no network, ~50 lines.
 	#
-	# Also to be proposed upstream, separately from 0001 — they are independent.
+	# Also to be proposed upstream, separately from 0001 - they are independent.
 	patch -p1 -i "$srcdir/0002-errordialog-show-log-button.patch"
 }
 

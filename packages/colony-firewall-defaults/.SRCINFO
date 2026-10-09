@@ -1,5 +1,5 @@
 pkgbase = colony-firewall-defaults
-	pkgdesc = Arch Colony defaults for Colony Firewall Control — enabled, seeded, inbound off
+	pkgdesc = Arch Colony defaults for Colony Firewall Control: enabled, seeded, inbound off
 	pkgver = 20260821
 	pkgrel = 1
 	url = https://github.com/Project-Colony/Arch-Colony

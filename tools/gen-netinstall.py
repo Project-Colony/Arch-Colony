@@ -16,7 +16,7 @@ not an opinion this project should be forming on its own.
 The repository listing is a snapshot taken when the ISO is built. archinstall can
 regenerate it at install time because it runs pacman itself; Calamares reads a
 static file, so a very old ISO will offer packages that have since been renamed.
-Those simply fail to install — worth knowing, not worth blocking on.
+Those simply fail to install - worth knowing, not worth blocking on.
 
 Usage:
     tools/gen-netinstall.py --archinstall /path/to/archinstall > netinstall.yaml
@@ -35,7 +35,7 @@ from pathlib import Path
 # NVIDIA needs care here in a way it does not for Arch itself. The plain `nvidia`
 # and `nvidia-dkms` packages no longer exist; of the two that remain, `nvidia-open`
 # depends on `linux` and would drag the stock kernel onto a machine that ships
-# linux-hardened (ADR-0004) — the same defect a code review already caught with
+# linux-hardened (ADR-0004) - the same defect a code review already caught with
 # broadcom-wl. So the open kernel module is offered only in its DKMS form, and
 # linux-hardened-headers is added, which archinstall does not need because it lets
 # the user pick the kernel separately.
@@ -52,12 +52,12 @@ DRIVERS = [
         "mesa", "libva-intel-driver", "intel-media-driver", "vpl-gpu-rt", "libvpl",
         "vulkan-intel",
     ]),
-    ("NVIDIA — module noyau ouvert (Turing et plus récent)",
+    ("NVIDIA - module noyau ouvert (Turing et plus récent)",
      "Module noyau ouvert, espace utilisateur propriétaire. Variante DKMS obligatoire : "
      "nvidia-open dépend du noyau linux standard, que cette distribution ne livre pas.", [
         "nvidia-open-dkms", "dkms", "linux-hardened-headers", "libva-nvidia-driver",
     ]),
-    ("NVIDIA — nouveau (libre)", "Pilote entièrement libre, cartes plus anciennes", [
+    ("NVIDIA - nouveau (libre)", "Pilote entièrement libre, cartes plus anciennes", [
         "mesa", "xf86-video-nouveau", "vulkan-nouveau",
     ]),
     ("Machine virtuelle", "VirtualBox, QEMU, VMware", [
@@ -75,7 +75,7 @@ DRIVERS = [
 # Keyed by the lowercased GreeterType member name, which is what the parser reads
 # out of `return GreeterType.Xxx`. The enum *values* are different strings again
 # (GreeterType.Lightdm == 'lightdm-gtk-greeter'), so neither the member name nor
-# the value is a package name — the mapping has to be explicit.
+# the value is a package name - the mapping has to be explicit.
 GREETERS = {
     "lightdm": (["lightdm", "lightdm-gtk-greeter"], "lightdm"),
     "lightdmslick": (["lightdm", "lightdm-slick-greeter"], "lightdm"),
@@ -90,7 +90,7 @@ GREETERS = {
 # The login screen is its own question, exactly as archinstall makes it one.
 #
 # It used to be folded into each desktop's package list, so ticking three
-# desktops installed three greeters — and all three declare
+# desktops installed three greeters - and all three declare
 # Alias=display-manager.service, so they fought over one symlink. `systemctl
 # enable` refuses to overwrite an existing alias, so the FIRST one won, which
 # on 2026-08-21 meant greetd: its stock session is `agreety --cmd /bin/sh`, a
@@ -106,13 +106,13 @@ GREETERS = {
 # sddm is the default because it serves the most desktops here and lists every
 # installed session, so it is right even when it is not the desktop's own.
 GREETER_ORDER = [
-    ("sddm", "SDDM", "Recommandé — propose toutes les sessions installées", True),
+    ("sddm", "SDDM", "Recommandé - propose toutes les sessions installées", True),
     ("gdm", "GDM", "Celui de GNOME", False),
     ("lightdm", "LightDM", "Léger, thème GTK", False),
     ("lightdmslick", "LightDM (slick)", "LightDM avec le thème slick", False),
     ("plasmaloginmanager", "Plasma Login Manager", "Celui de KDE Plasma", False),
     ("cosmicsession", "COSMIC Greeter", "Celui de COSMIC", False),
-    ("ly", "ly", "En console, très léger — remplace le getty de tty1", False),
+    ("ly", "ly", "En console, très léger - remplace le getty de tty1", False),
     ("greetddms", "greetd", "Sans configuration, il ouvre une session TEXTE", False),
 ]
 
@@ -128,7 +128,7 @@ OVERRIDES = {
 }
 
 
-# Offered from [colony], which — unlike multilib — the target's pacman.conf does
+# Offered from [colony], which - unlike multilib - the target's pacman.conf does
 # get, because the cleanup step appends colony-repo.conf to it. So these install.
 #
 # A short, chosen list rather than the repository's contents. calamares is the
@@ -139,7 +139,7 @@ OVERRIDES = {
 # not to trust the page.
 # Colony Firewall Control is deliberately NOT here any more. It is installed
 # into the target by packages.conf's try_install of colony-firewall-defaults,
-# so offering it as a tick box would offer something already on its way — and a
+# so offering it as a tick box would offer something already on its way - and a
 # page that offers what you are getting anyway teaches people not to read it.
 COLONY = [
     ("paru",
@@ -152,7 +152,7 @@ def _strings(node: ast.AST, consts: dict[str, list[str]]) -> list[str] | None:
     """Flatten an expression into the strings it denotes, or None if it doesn't.
 
     Handles literals, lists and tuples of them, module-level constants, and
-    `[...] + something` — the shape several profiles use to append a package the
+    `[...] + something` - the shape several profiles use to append a package the
     user is separately asked about.
     """
     if isinstance(node, ast.Constant) and isinstance(node.value, str):
@@ -185,7 +185,7 @@ def parse_desktop(path: Path) -> dict | None:
     Parsed with `ast`, not with regular expressions. Regex parsing of Python
     cost this file twice: an exponential pattern CodeQL flagged as py/redos, and
     a profile silently dropped because one element of its package list was a
-    module constant rather than a quoted literal — a list the old pattern could
+    module constant rather than a quoted literal - a list the old pattern could
     only reject wholesale. `ast` removes both classes of mistake, and the module
     constants it can now resolve are why niri_dms is offered at all.
     """
@@ -270,7 +270,7 @@ def repo_packages(repos: list[str]) -> dict[str, list[str]]:
 
 
 def emit(groups: list[dict]) -> str:
-    lines = ["# GENERATED by tools/gen-netinstall.py — do not edit.",
+    lines = ["# GENERATED by tools/gen-netinstall.py - do not edit.",
              "#",
              "# Desktop and driver data derived from archinstall (GPL-3.0-or-later).",
              "# Repository listings are a snapshot taken when the ISO was built.",
@@ -306,8 +306,8 @@ def main() -> None:
     ap.add_argument("--archinstall", required=True, type=Path,
                     help="path to an archinstall checkout")
     # multilib is deliberately absent. It is not enabled in the target's
-    # pacman.conf — mkarchiso pacstraps with -G -M and installs pacman's stock
-    # config, and the cleanup step only adds [colony] — so every lib32 package
+    # pacman.conf - mkarchiso pacstraps with -G -M and installs pacman's stock
+    # config, and the cleanup step only adds [colony] - so every lib32 package
     # offered here would fail to install, silently. Offering something that
     # cannot work is worse than not offering it.
     ap.add_argument("--repos", nargs="+", default=["core", "extra"])
@@ -340,7 +340,7 @@ def main() -> None:
         if g is None:
             continue
         if g not in GREETERS:
-            sys.exit(f"{d['source']}: unknown GreeterType '{g}' — add it to GREETERS. "
+            sys.exit(f"{d['source']}: unknown GreeterType '{g}' - add it to GREETERS. "
                      "Refusing to emit a desktop that would install without a login manager.")
         # Kept for the description only. Merging these into d["packages"] is
         # what produced three greeters for three desktops; the login screen is
@@ -348,8 +348,8 @@ def main() -> None:
         d["greeter_unit"] = GREETERS[g][1]
 
     # Strip greeters from the desktop lists outright, because some profiles put
-    # theirs in `packages` upstream — i3 lists lightdm and lightdm-gtk-greeter
-    # itself — and archinstall does not mind, since install_greeter runs anyway
+    # theirs in `packages` upstream - i3 lists lightdm and lightdm-gtk-greeter
+    # itself - and archinstall does not mind, since install_greeter runs anyway
     # and pacman is idempotent. Here it matters: a desktop that quietly brings a
     # second greeter recreates the alias fight the separate group exists to end.
     greeter_pkgs = {pkg for pkgs, _ in GREETERS.values() for pkg in pkgs}
@@ -404,7 +404,7 @@ def main() -> None:
     print(f"# {total} paquets de dépôt", file=sys.stderr)
     # noncheckable, and this is not cosmetic. PackageTreeItem::setSelected walks
     # the source tree, so ticking "extra" would select all 14910 of its packages
-    # in one click — and the filter proxy makes that easy to do by accident, since
+    # in one click - and the filter proxy makes that easy to do by accident, since
     # a search leaves the group visible with only its matches shown underneath.
     # noncheckable removes Qt::ItemIsUserCheckable from the group alone; unlike
     # immutable it does not propagate, so individual packages stay selectable.

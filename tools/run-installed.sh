@@ -15,7 +15,7 @@ DISK="${COLONY_TEST_DISK:-$STATE/colony-target.qcow2}"
 VARS="$STATE/colony-OVMF_VARS.fd"
 CODE=/usr/share/edk2/x64/OVMF_CODE.4m.fd
 
-[[ -f $DISK ]] || { echo "no target disk at $DISK — run tools/run-iso.sh and install first" >&2; exit 1; }
+[[ -f $DISK ]] || { echo "no target disk at $DISK - run tools/run-iso.sh and install first" >&2; exit 1; }
 [[ -f $CODE ]] || { echo "OVMF missing: pacman -S edk2-ovmf" >&2; exit 1; }
 
 # Reuse the firmware variables the installation wrote: they hold the systemd-boot

@@ -26,7 +26,7 @@ index 9c70e97..5e8f0a5 100644
 +    m_filterModel->setFilterCaseSensitivity( Qt::CaseInsensitive );
 +    // Column 0 only. Filtering every column matches on descriptions too, and
 +    // QSortFilterProxyModel does not accept a row's children just because the row
-+    // itself matched (autoAcceptChildRows is false by default) — so a search for a
++    // itself matched (autoAcceptChildRows is false by default) - so a search for a
 +    // word that appears in a group's description yields that group with none of
 +    // its packages under it.
 +    m_filterModel->setFilterKeyColumn( 0 );
@@ -39,7 +39,7 @@ index 9c70e97..5e8f0a5 100644
 +    // index.sibling( index.column(), index.row() ), and sibling() takes (row,
 +    // column). For any row past the first the column is out of bounds and the
 +    // index is invalid. Upstream this is harmless, because QAbstractItemView
-+    // repaints the whole viewport regardless of the range — but a proxy drops the
++    // repaints the whole viewport regardless of the range - but a proxy drops the
 +    // signal outright when an endpoint is invalid, so checkboxes would stop
 +    // redrawing as soon as a proxy was inserted. Repaint unconditionally rather
 +    // than let the view show state that no longer matches the model.

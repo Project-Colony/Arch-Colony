@@ -9,7 +9,7 @@ iso_version="$(date --date="@${SOURCE_DATE_EPOCH:-$(date +%s)}" +%Y.%m.%d)"
 install_dir="colony"
 buildmodes=('iso')
 # UEFI only, deliberately. bootloader.conf asks for systemd-boot, which is
-# UEFI-only — but Calamares routes every non-EFI install to GRUB regardless
+# UEFI-only - but Calamares routes every non-EFI install to GRUB regardless
 # (bootloader/main.py: `elif efi_boot_loader == "grub" or fw_type != "efi"`), and
 # then reads configuration["grubInstall"] with a bare subscript. That key is not
 # in our override, so a BIOS install dies on an unhandled KeyError *after*
