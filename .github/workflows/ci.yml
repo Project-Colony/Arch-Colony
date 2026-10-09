@@ -22,7 +22,10 @@ jobs:
       contents: read
     steps:
       - name: Install tools
-        run: pacman -Syu --noconfirm --needed git python shellcheck zsh
+        run: |
+          pacman -Syu --noconfirm --needed git python shellcheck zsh
+          # The checkout belongs to the runner's user, not to root in here.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -125,7 +128,10 @@ jobs:
       contents: read
     steps:
       - name: Install tools
-        run: pacman -Syu --noconfirm --needed git namcap
+        run: |
+          pacman -Syu --noconfirm --needed git namcap
+          # The checkout belongs to the runner's user, not to root in here.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -138,9 +144,11 @@ jobs:
           # its base; a push compares with what main held before it.
           BASE: 4b825dc642cb6eb9a060e54bf8d69288fbee4904
         run: |
-          mapfile -t changed < <(git diff --name-only "$BASE" HEAD -- packages/ | cut -d/ -f2 | sort -u)
+          # Not read through a process substitution, whose failure bash ignores:
+          # a git error must fail the job, not read as "nothing changed".
+          changed=$(git diff --name-only "$BASE" HEAD -- packages/)
           dirs=()
-          for name in "${changed[@]}"; do
+          for name in $(cut -d/ -f2 <<<"$changed" | sort -u); do
             [[ -f packages/$name/PKGBUILD ]] && dirs+=("packages/$name")
           done
           if (( ! ${#dirs[@]} )); then
