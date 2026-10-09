@@ -33,6 +33,8 @@ case "$PROFILE" in
 esac
 
 shopt -s nullglob
+# $pattern is left unquoted on purpose: it is the glob.
+# shellcheck disable=SC2206
 isos=("$ROOT/iso/out/"$pattern)
 shopt -u nullglob
 (( ${#isos[@]} )) || { echo "no ISO matching $pattern in iso/out - run iso/build.sh first" >&2; exit 1; }
@@ -45,6 +47,8 @@ echo "==> fresh target disk: $DISK ($DISK_SIZE)"
 rm -f "$DISK"
 qemu-img create -f qcow2 "$DISK" "$DISK_SIZE" >/dev/null
 
+# The commas are QEMU's own option syntax, not array separators.
+# shellcheck disable=SC2054
 args=(
 	-enable-kvm -cpu host -m 4G -smp 4
 	-cdrom "$ISO"
