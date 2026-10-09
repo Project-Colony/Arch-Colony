@@ -19,6 +19,9 @@ KEYRING="$ROOT/packages/colony-keyring"
 STANZA="$ROOT/packages/colony-mirrorlist/colony-repo.conf"
 
 : "${COLONY_SIGNING_KEY:?not set - see repo/genkey.sh}"
+# The public key the sandbox is told to trust. CI holds no Colony key, so it
+# signs with a throwaway one and points this at its export.
+PUBKEY="${COLONY_PUBKEY:-$KEYRING/colony.gpg}"
 
 # Already root, as in a container: no sudo needed, and none may be installed.
 SUDO=sudo
@@ -49,7 +52,7 @@ echo "==> building the signed database"
 
 echo "==> isolated keyring, trusting nothing to start with"
 $SUDO pacman-key --gpgdir "$TEST/gnupg" --init
-$SUDO pacman-key --gpgdir "$TEST/gnupg" --add "$KEYRING/colony.gpg"
+$SUDO pacman-key --gpgdir "$TEST/gnupg" --add "$PUBKEY"
 $SUDO pacman-key --gpgdir "$TEST/gnupg" --lsign-key "$COLONY_SIGNING_KEY"
 
 # pacman.conf as an installed machine has it: the [options] that `pacman` ships,

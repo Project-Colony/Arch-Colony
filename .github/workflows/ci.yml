@@ -1,0 +1,214 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+# Every job runs in Arch itself: the scripts call pacman, makepkg, repo-add and
+# pacman-key, and the packages are built for Arch.
+jobs:
+  lint:
+    name: Lint scripts
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    permissions:
+      contents: read
+    steps:
+      - name: Install tools
+        run: |
+          pacman -Syu --noconfirm --needed git python shellcheck zsh
+          # The checkout belongs to the runner's user, not to root in here.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: shellcheck
+        run: |
+          git ls-files -z '*.sh' packages/colonyctl/colonyctl | xargs -0 shellcheck -x
+          # pacman runs install scriptlets with bash, and they carry no shebang.
+          git ls-files -z 'packages/*/*.install' | xargs -0 shellcheck -x --shell=bash
+
+      - name: zsh syntax of the live session login script
+        run: zsh -n iso/install/airootfs/root/.zlogin
+
+      - name: Compile the Python tools
+        run: python -m py_compile tools/*.py
+
+  tools:
+    name: Tests and installer inputs
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    permissions:
+      contents: read
+    steps:
+      - name: Install tools
+        run: |
+          # check-shadowing.sh reads multilib too, which the image leaves off.
+          printf '\n[multilib]\nInclude = /etc/pacman.d/mirrorlist\n' >> /etc/pacman.conf
+          pacman -Syu --noconfirm --needed git python python-yaml
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: ADR-0002, nothing in packages/ shadows core, extra or multilib
+        run: tools/check-shadowing.sh
+
+      - name: colony-mirrorlist SigLevel migration
+        run: tools/test-mirrorlist-migration.sh
+
+      - name: Signed [colony] repository, end to end
+        run: |
+          # makepkg refuses to run as root.
+          useradd -m builder
+          cp -r packages/colony-mirrorlist ~builder/
+          chown -R builder: ~builder/colony-mirrorlist
+          (cd ~builder/colony-mirrorlist && runuser -u builder -- makepkg --noconfirm)
+          mkdir -p repo/out
+          mv ~builder/colony-mirrorlist/*.pkg.tar.zst repo/out/
+
+          # A throwaway key: the Colony signing key never leaves its owner's
+          # machine. What this run proves is the chain, not the key.
+          gpg --batch --passphrase '' --quick-gen-key 'Arch Colony CI <ci@invalid>' ed25519 sign 1d
+          key=$(gpg --with-colons --list-secret-keys | awk -F: '/^fpr:/ {print $10; exit}')
+          gpg --export "$key" > "$RUNNER_TEMP/ci-key.gpg"
+          for f in repo/out/*.pkg.tar.zst; do
+            gpg --detach-sign --no-armor --local-user "$key" "$f"
+          done
+
+          COLONY_SIGNING_KEY=$key COLONY_PUBKEY=$RUNNER_TEMP/ci-key.gpg tools/test-repo.sh
+
+      - name: Fetch the pinned installer inputs
+        run: iso/fetch-inputs.sh "$RUNNER_TEMP/inputs"
+
+      - name: Theme tokens resolve in every palette
+        run: |
+          themes=$RUNNER_TEMP/inputs/themes.json
+          mapfile -t variants < <(python -c 'import json, sys
+          for f in json.load(open(sys.argv[1]))["families"]:
+              for v in f["variants"]:
+                  print(f["key"] + "/" + v["key"])' "$themes")
+          (( ${#variants[@]} ))
+          for v in "${variants[@]}"; do
+            work=$(mktemp -d)
+            cp -r iso/install/airootfs/etc/calamares "$work/"
+            mapfile -t templates < <(find "$work" -name '*.in')
+            python tools/resolve-theme.py "$themes" "$v" "${templates[@]}" | tail -n 1
+          done
+
+          # The check has to catch a placeholder the token pattern never matches.
+          printf 'a { color: @Accent-Blue@; }\n' > "$work/bad.qss.in"
+          if python tools/resolve-theme.py "$themes" "${variants[0]}" "$work/bad.qss.in"; then
+            echo "a malformed placeholder was accepted" >&2
+            exit 1
+          fi
+
+      - name: Installer package tree from the pinned archinstall
+        run: |
+          out=$RUNNER_TEMP/netinstall.yaml
+          tools/gen-netinstall.py --archinstall "$RUNNER_TEMP/inputs/archinstall" > "$out"
+          # Calamares reads this file at install time; a quoting slip in the
+          # generator would only show up there.
+          python -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' "$out"
+
+  packages:
+    name: Build changed packages
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    permissions:
+      contents: read
+    steps:
+      - name: Install tools
+        run: |
+          pacman -Syu --noconfirm --needed git namcap
+          # The checkout belongs to the runner's user, not to root in here.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build, then namcap, each changed package
+        env:
+          # A pull request is checked out as a merge commit whose first parent is
+          # its base; a push compares with what main held before it.
+          BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
+        run: |
+          # Not read through a process substitution, whose failure bash ignores:
+          # a git error must fail the job, not read as "nothing changed".
+          changed=$(git diff --name-only "$BASE" HEAD -- packages/)
+          dirs=()
+          for name in $(cut -d/ -f2 <<<"$changed" | sort -u); do
+            [[ -f packages/$name/PKGBUILD ]] && dirs+=("packages/$name")
+          done
+          if (( ! ${#dirs[@]} )); then
+            echo "No package changed."
+            exit 0
+          fi
+
+          # makepkg refuses to run as root, and --syncdeps installs through sudo.
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          mkdir /build
+
+          # Which directory builds each pkgname, for the Colony packages others
+          # depend on: no repository this container knows serves them.
+          declare -A dir_of=()
+          for srcinfo in packages/*/.SRCINFO; do
+            for name in $(sed -n 's/^pkgname = //p' "$srcinfo"); do
+              dir_of[$name]=${srcinfo%/.SRCINFO}
+            done
+          done
+
+          declare -A built=()
+          failed=0
+          build() {
+            local dir=$1 name=${1#packages/} dep need out
+            [[ -z ${built[$dir]:-} ]] || return 0
+            built[$dir]=1
+
+            for dep in $(sed -nE 's/^\t(make|check)?depends = ([^<>=]+).*/\2/p' "$dir/.SRCINFO" | sort -u); do
+              need=${dir_of[$dep]:-}
+              [[ -n $need && $need != "$dir" ]] || continue
+              build "$need"
+              find "/build/${need#packages/}" -maxdepth 1 -name '*.pkg.tar.zst' ! -name '*-debug-*' \
+                -exec pacman -U --noconfirm --needed {} +
+            done
+
+            echo "::group::$name"
+            cp -r "$dir" /build/
+            chown -R builder: "/build/$name"
+            cd "/build/$name"
+
+            if ! runuser -u builder -- makepkg --printsrcinfo | diff -u .SRCINFO -; then
+              echo "::error file=$dir/.SRCINFO::.SRCINFO is stale: regenerate it with makepkg --printsrcinfo > .SRCINFO"
+              failed=1
+            fi
+
+            runuser -u builder -- makepkg --syncdeps --noconfirm
+
+            out=$(find . -maxdepth 1 -name '*.pkg.tar.zst' ! -name '*-debug-*' -exec namcap PKGBUILD {} +)
+            echo "$out"
+            if grep -q ' E: ' <<<"$out"; then
+              echo "::error file=$dir/PKGBUILD::namcap reports errors for $name"
+              failed=1
+            fi
+
+            cd "$GITHUB_WORKSPACE"
+            echo "::endgroup::"
+          }
+
+          for dir in "${dirs[@]}"; do
+            build "$dir"
+          done
+          exit "$failed"

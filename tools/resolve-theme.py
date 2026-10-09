@@ -10,8 +10,10 @@ generated/themes.json. A template names palette fields directly - @bg_primary@,
 artifact, and no colour is ever written down in this repository (principe 4).
 
 Nothing is written until every template has resolved. A token that names no
-palette field aborts the run: Qt drops a stylesheet rule it cannot parse without
-a word, so a typo would otherwise ship as a silently unstyled widget.
+palette field aborts the run, and so does anything still shaped like a
+placeholder afterwards (@Accent-Blue@, a name the token pattern never matches):
+Qt drops a stylesheet rule it cannot parse without a word, so a typo would
+otherwise ship as a silently unstyled widget.
 """
 
 import json
@@ -20,6 +22,8 @@ import sys
 from pathlib import Path
 
 TOKEN = re.compile(r"@([a-z][a-z0-9_]*)@")
+# Anything a template author could have meant as a token, valid or not.
+PLACEHOLDER = re.compile(r"@[A-Za-z0-9_.-]+@")
 
 
 def fail(msg: str) -> "NoReturn":
@@ -55,7 +59,11 @@ def main(argv: list[str]) -> None:
         unknown = sorted({m for m in TOKEN.findall(text) if m not in pal})
         if unknown:
             fail(f"{src}: unknown palette field(s): {', '.join(unknown)}")
-        resolved.append((src, src.with_suffix(""), TOKEN.sub(lambda m: pal[m.group(1)], text)))
+        out = TOKEN.sub(lambda m: pal[m.group(1)], text)
+        left = sorted(set(PLACEHOLDER.findall(out)))
+        if left:
+            fail(f"{src}: unresolved placeholder(s): {', '.join(left)}")
+        resolved.append((src, src.with_suffix(""), out))
 
     for src, dst, text in resolved:
         dst.write_text(text)
