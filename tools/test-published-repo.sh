@@ -14,6 +14,7 @@ set -euo pipefail
 
 ROOT="$(realpath "$(dirname "$(realpath "$0")")/..")"
 KEYRING="$ROOT/packages/colony-keyring"
+STANZA="$ROOT/packages/colony-mirrorlist/colony-repo.conf"
 SERVER="${COLONY_SERVER:-https://github.com/Project-Colony/Arch-Colony/releases/download/repo}"
 # What to install as the proof. The eBPF object is the interesting one: it is
 # the package whose whole reason for existing is that it reaches the machine.
@@ -39,14 +40,23 @@ sudo pacman-key --gpgdir "$TEST/gnupg" --init
 sudo pacman-key --gpgdir "$TEST/gnupg" --add "$KEYRING/colony.gpg"
 sudo pacman-key --gpgdir "$TEST/gnupg" --lsign-key "$COLONY_SIGNING_KEY"
 
-cat > "$TEST/pacman.conf" <<EOF
-[options]
-Architecture = x86_64
-SigLevel    = Required DatabaseRequired
-
-[colony]
-Server = $SERVER
-EOF
+# pacman.conf as an installed machine has it: the [options] that `pacman` ships,
+# then the stanza colony-mirrorlist ships, verbatim except for where its Include
+# points. [options] says DatabaseOptional on purpose, so that the database
+# signature is required by the stanza's own SigLevel and by nothing else.
+include="Include = $TEST/colony-mirrorlist"
+stanza=$(sed "s|^Include = /etc/pacman.d/colony-mirrorlist$|$include|" "$STANZA")
+grep -qxF "$include" <<<"$stanza" || {
+	echo "FAIL: colony-repo.conf no longer includes /etc/pacman.d/colony-mirrorlist" >&2
+	exit 1
+}
+grep -qx 'SigLevel = Required DatabaseRequired' <<<"$stanza" || {
+	echo "FAIL: colony-repo.conf no longer requires a signed database" >&2
+	exit 1
+}
+printf '[options]\nArchitecture = x86_64\nSigLevel    = Required DatabaseOptional\n\n%s\n' \
+	"$stanza" > "$TEST/pacman.conf"
+printf 'Server = %s\n' "$SERVER" > "$TEST/colony-mirrorlist"
 
 pac() {
 	sudo pacman --config "$TEST/pacman.conf" --root "$TEST/root" --dbpath "$TEST/db" \
