@@ -80,6 +80,11 @@ the OpenPGP key that `colony-keyring` installs:
 5CD2 FCA1 3E69 1C65 A354  780D 80C1 18F7 74E6 C43F
 ```
 
+An installed machine requires both kinds of signature. The `[colony]` stanza
+in `/etc/pacman.conf` sets `SigLevel = Required DatabaseRequired`, so pacman
+refuses a package or a database that is unsigned or signed by a key it does
+not trust. `colonyctl status` shows this as `database signature`.
+
 The primary key only certifies. Signatures are made by a separate signing
 subkey (RSA 4096, expiring 2029-08-18), so that subkey can be replaced without
 asking anyone to trust a new key. The reasoning is in

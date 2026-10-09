@@ -110,6 +110,18 @@ cmd_status() {
 		local server
 		server=$(pacman-conf --repo=colony Server 2>/dev/null | head -n1)
 		[[ -n $server ]] && field "server" "$server"
+		# Whether a colony.db served without its signature would be refused.
+		# pacman-conf prints only what the section itself sets, so a stanza
+		# with no SigLevel falls back to [options], as pacman does - and
+		# pacman's own default there is DatabaseOptional.
+		local sig
+		sig=$(pacman-conf --repo=colony SigLevel 2>/dev/null)
+		[[ -n $sig ]] || sig=$(pacman-conf SigLevel 2>/dev/null)
+		if grep -qx DatabaseRequired <<<"$sig"; then
+			field "database signature" "${OK}required${R}"
+		else
+			field "database signature" "${BAD}not required${R} - add 'SigLevel = Required DatabaseRequired' under [colony] in /etc/pacman.conf"
+		fi
 	else
 		field "[colony]" "${WARN}not configured${R} - Colony packages will not update"
 	fi
