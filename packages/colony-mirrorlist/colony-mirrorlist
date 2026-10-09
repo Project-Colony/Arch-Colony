@@ -4,10 +4,18 @@
 ## Add to /etc/pacman.conf, BEFORE [core]:
 ##
 ##   [colony]
+##   SigLevel = Required DatabaseRequired
 ##   Include = /etc/pacman.d/colony-mirrorlist
 ##
 ## The position is not there to shadow anything - ADR-0002 forbids [colony] from
 ## carrying the name of any package in [core], [extra] or [multilib].
+##
+## The SigLevel is not optional: without it [colony] inherits pacman's
+## "DatabaseOptional" and accepts a database served without its signature.
+##
+## Moving the repository means adding its new Server here, above the old one,
+## and keeping the old one serving for a while - see
+## /usr/share/colony/pacman/colony-repo.conf.
 ##
 
 ## GitHub Releases

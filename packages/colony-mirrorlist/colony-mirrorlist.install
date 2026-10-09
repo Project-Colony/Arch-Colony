@@ -1,0 +1,48 @@
+# Brings the [colony] stanza of an installed machine up to the one this package
+# ships in /usr/share/colony/pacman/colony-repo.conf.
+#
+# The installer copied that stanza into /etc/pacman.conf, and until pkgrel 6 it
+# had no SigLevel. It therefore inherited pacman's own default, "Required
+# DatabaseOptional", which accepts a colony.db served without its signature.
+# Shipping the line in colony-repo.conf only fixes machines installed from now
+# on; this is the part that reaches the others.
+#
+# Editing a value in /etc/pacman.conf is not shadowing `pacman` (ADR-0002).
+# Shadowing means shipping a file or a package that a base package owns, so that
+# an Arch update and ours fight over it. Nothing here is shipped: one line is
+# added inside the stanza the installer appended, in a file `pacman` declares in
+# backup= - a file pacman itself treats as the administrator's. Its next upgrade
+# writes pacman.conf.pacnew beside it and leaves this line alone, so ADR-0002's
+# test - can an Arch update now break this machine where it would not break
+# Arch? - still answers no.
+#
+# Only when pacman itself parses the configuration, finds [colony] in it, and
+# finds no SigLevel for it anywhere, including in an Include'd file. A SigLevel
+# an administrator chose is theirs; `colonyctl status` reports a weak one.
+# Running it twice changes nothing the second time.
+
+# A variable only so that tools/test-mirrorlist-migration.sh can aim it at
+# fixtures. pacman runs scriptlets chrooted into the target root.
+_pacman_conf=/etc/pacman.conf
+
+_require_signed_db() {
+	local conf=$_pacman_conf
+	local header='^[[:space:]]*\[colony\][[:space:]]*$'
+
+	pacman-conf --config "$conf" --repo-list 2>/dev/null | grep -qx colony || return 0
+	[[ -z $(pacman-conf --config "$conf" --repo=colony SigLevel 2>/dev/null) ]] || return 0
+
+	# pacman accepts a section header from an Include'd file too. That one is
+	# not ours to find, so say what to do rather than claim it was done.
+	if ! grep -q "$header" "$conf"; then
+		echo "colony-mirrorlist: [colony] is declared outside $conf; add 'SigLevel = Required DatabaseRequired' to it by hand"
+		return 0
+	fi
+
+	sed -i "/$header/a SigLevel = Required DatabaseRequired" "$conf"
+	echo "colony-mirrorlist: added 'SigLevel = Required DatabaseRequired' to [colony] in $conf, so an unsigned colony.db is refused"
+}
+
+post_upgrade() {
+	_require_signed_db
+}
