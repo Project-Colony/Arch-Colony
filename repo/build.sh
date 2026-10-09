@@ -11,7 +11,7 @@ set -euo pipefail
 ROOT="$(realpath "$(dirname "$(realpath "$0")")/..")"
 OUT="$ROOT/repo/out"
 
-: "${COLONY_SIGNING_KEY:?not set — run repo/genkey.sh first, then export it}"
+: "${COLONY_SIGNING_KEY:?not set - run repo/genkey.sh first, then export it}"
 
 command -v pkgctl >/dev/null || { echo "pkgctl missing: pacman -S devtools" >&2; exit 1; }
 
@@ -33,7 +33,7 @@ for p in "${pkgs[@]}"; do
 	# The chroot only ever sees [core] and [extra]; [colony] is not in devtools'
 	# pacman.conf and has no business being there, since it would make the build
 	# depend on what we happen to have published. So a package that depends on
-	# another Colony package cannot resolve it — colony-firewall-defaults needs
+	# another Colony package cannot resolve it - colony-firewall-defaults needs
 	# colony-firewall-control, and pkgctl stopped at "Could not resolve all
 	# dependencies".
 	#
@@ -93,7 +93,7 @@ for p in "${pkgs[@]}"; do
 	for f in "${built[@]}"; do
 		# Drop older builds of the same package first. Without this a rebuild leaves
 		# both versions in repo/out, repo-add indexes what it finds, and publish.sh
-		# uploads *.pkg.tar.zst unfiltered — so the stale build ships too. Observed
+		# uploads *.pkg.tar.zst unfiltered - so the stale build ships too. Observed
 		# after bumping colony-mirrorlist to pkgrel 2.
 		#
 		# The stem is the filename minus pkgver-pkgrel-arch, which is unambiguous
@@ -110,7 +110,7 @@ done
 
 echo
 echo "Built into $OUT:"
-# Not `ls | xargs basename` — the repository path contains a space.
+# Not `ls | xargs basename` - the repository path contains a space.
 for f in "$OUT"/*.pkg.tar.zst; do
 	[[ -e $f ]] && basename "$f"
 done

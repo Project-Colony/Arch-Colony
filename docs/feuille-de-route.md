@@ -9,7 +9,7 @@ jalon dont on connaîtra vraiment le coût une fois fait.
 
 ---
 
-## J0 — Le dépôt existe  ✅ *fait le 2026-08-19*
+## J0 : Le dépôt existe  ✅ *fait le 2026-08-19*
 
 **Artefact vérifiable** : depuis une VM Arch vierge, ajouter `[colony]` à `pacman.conf`,
 importer la clé, et installer `colony-mirrorlist` avec `pacman -S`.
@@ -20,14 +20,14 @@ importer la clé, et installer `colony-mirrorlist` avec `pacman -S`.
 - Un hébergement qui sert le dépôt
 
 **Pourquoi en premier.** Tout le reste en dépend, et c'est le seul jalon qui valide la chaîne
-de confiance — la partie où une erreur se paie par une réinstallation chez tous les
+de confiance - la partie où une erreur se paie par une réinstallation chez tous les
 utilisateurs.
 
 **Effort** : quelques jours. **Risque** : faible, mécanique bien documentée.
 
 ---
 
-## J1 — Le plus petit ISO qui démarre  ✅ *fait le 2026-08-20*
+## J1 : Le plus petit ISO qui démarre  ✅ *fait le 2026-08-20*
 
 **Artefact vérifiable** : un ISO qui démarre en VM jusqu'à un shell root, où
 `cat /etc/os-release` affiche Arch Colony.
@@ -44,7 +44,7 @@ réel de la construction d'image, qui conditionne toutes les estimations suivant
 
 ---
 
-## J2 — Installable sur disque  ✅ *fait le 2026-08-21*
+## J2 : Installable sur disque  ✅ *fait le 2026-08-21*
 
 **Artefact vérifiable** : depuis l'ISO, installer sur un disque virtuel, redémarrer, et
 ouvrir une session sur le système installé.
@@ -54,7 +54,7 @@ ouvrir une session sur le système installé.
 - `linux-hardened` installé et démarré ([ADR-0004](decisions/0004-noyau-linux-hardened.md))
 - Test automatisé en QEMU : installation sans interaction, redémarrage, assertion sur l'état
 
-**Effort** : deux à quatre semaines. **Risque** : moyen — Calamares est éprouvé, sa
+**Effort** : deux à quatre semaines. **Risque** : moyen - Calamares est éprouvé, sa
 configuration l'est moins.
 
 **Ce que J2 a réellement coûté.** Beaucoup plus que « configurer Calamares ». Deux revues
@@ -62,10 +62,10 @@ adversariales ont trouvé 54 défauts confirmés, dont aucun n'était visible à
 l'ISO se fabriquait en vert tout en produisant une installation qui ne pouvait pas aboutir.
 Les plus coûteux, par ordre de gravité :
 
-- rien de ce qui était coché ne s'installait — `mkarchiso` supprime la base de
+- rien de ce qui était coché ne s'installait - `mkarchiso` supprime la base de
   synchronisation de pacman, et la correction évidente dépendait d'un contrôle réseau
   retiré deux commits plus tôt ;
-- aucun bureau n'atteignait une session graphique — `archinstall` n'inclut pas le greeter
+- aucun bureau n'atteignait une session graphique - `archinstall` n'inclut pas le greeter
   dans `packages`, et le module `displaymanager` de Calamares n'active rien ;
 - une installation BIOS effaçait le disque puis mourait sur un `KeyError` ;
 - le système installé n'avait **aucun miroir** : le `mirrorlist` livré a tous ses serveurs
@@ -79,23 +79,23 @@ de code trouve ce qu'une relecture ne trouve pas. Les deux revues ont été rent
 **Appliqué le 2026-09-05.** `iso-2026.09.05` est la première image installée de bout en bout
 *avant* publication : VM sans écran pilotée au clavier, installation Hyprland + SDDM jusqu'à
 « Terminé », démarrage sur SDDM, session Hyprland, pare-feu actif avec ses règles semées. Deux
-défauts n'ont été trouvés que par ce passage — le contrôle de session livré sans bit d'exécution
-(`profiledef.sh`) et un cadre blanc autour du diaporama — et auraient fait échouer l'installation
+défauts n'ont été trouvés que par ce passage - le contrôle de session livré sans bit d'exécution
+(`profiledef.sh`) et un cadre blanc autour du diaporama - et auraient fait échouer l'installation
 réelle suivante après formatage du disque.
 
 **Toujours pas vérifié** : `CONFIG_DEBUG_INFO_BTF` dans `linux-hardened`
 ([ADR-0004](decisions/0004-noyau-linux-hardened.md)). Le noyau démarre et installe, donc
-l'ADR tient en pratique — mais la question eBPF pour CFC reste ouverte.
+l'ADR tient en pratique - mais la question eBPF pour CFC reste ouverte.
 
 ---
 
-## J3 — Le bureau et l'identité
+## J3 : Le bureau et l'identité
 
 **Artefact vérifiable** : le système installé démarre sur une session Hyprland thémée
 Colony, avec le hub `colony` lancé.
 
 **Point de départ réel, mesuré à J2** : l'installateur propose déjà 20 bureaux et Hyprland
-s'installe et démarre — mais c'est du Hyprland *d'origine*, avec sa configuration
+s'installe et démarre - mais c'est du Hyprland *d'origine*, avec sa configuration
 auto-générée. L'écart à combler est donc l'habillage et l'intégration, pas la mise en
 marche. Deux défauts connus à traiter ici : la disposition clavier de SDDM (son greeter
 Wayland ne lit pas `/etc/X11/xorg.conf.d/`, il lui faut sa propre configuration), et
@@ -115,7 +115,7 @@ Calamares et diaporama résolus depuis `themes.json` à la construction de l'ISO
 
 ---
 
-## J4 — Le durcissement
+## J4 : Le durcissement
 
 **Artefact vérifiable** : après installation, `aa-status` montre les profils chargés, CFC
 tourne et filtre dans les deux sens, et la machine a toujours du réseau.
@@ -129,38 +129,38 @@ tourne et filtre dans les deux sens, et la machine a toujours du réseau.
 **Une mine, signalée par la session CFC le 2026-08-21.** `ProtectKernelTunables` de systemd
 261 remonte `/sys` en lecture seule **récursivement**, et casse les épinglages BPF. Or CFC
 tient précisément sa propriété la plus importante de ces épinglages : depuis le 2026-08-21,
-son application survit à l'arrêt du démon — un processus lancé *après* la mort du démon
+son application survit à l'arrêt du démon - un processus lancé *après* la mort du démon
 reçoit `EPERM` en 0 ms, mesuré. C'est exactement le durcissement d'unités systemd que ce
 jalon veut généraliser qui peut l'éteindre.
 
 Et l'extinction est **silencieuse** : CFC continue de tourner et de filtrer, il perd sans le
 dire la couche qui survit à sa propre mort. `cfc status` affiche désormais le niveau
-d'application — l'instrumenter **avant** d'introduire quoi que ce soit qui puisse
+d'application - l'instrumenter **avant** d'introduire quoi que ce soit qui puisse
 l'éteindre, pas après.
 
 Conséquence pratique : arrêter le service ne désactive plus CFC. Il faut aussi
 `rm -rf /sys/fs/bpf/colony-firewall`. C'est la contrepartie de la propriété ci-dessus.
 
 **Le point délicat.** Une politique entrante fail-closed activée au démarrage est le moyen le
-plus sûr de livrer un ISO qui ressemble à une panne réseau — et, sur une machine distante,
+plus sûr de livrer un ISO qui ressemble à une panne réseau - et, sur une machine distante,
 d'enfermer l'utilisateur dehors. Le garde-fou n'est pas une finition, c'est une condition de
 livraison. Voir le [principe 5](principes.md#5-un-durcissement-invisible-est-un-durcissement-qui-sera-désactivé).
 
-**Effort** : quatre à huit semaines. **Risque** : élevé — c'est le jalon où l'on casse des
+**Effort** : quatre à huit semaines. **Risque** : élevé - c'est le jalon où l'on casse des
 choses en silence.
 
 ---
 
-## J5 — L'édition Plasma
+## J5 : L'édition Plasma
 
 **Artefact vérifiable** : un second ISO, même base, session Plasma thémée Colony.
 
 **Effort** : deux à trois semaines si J3 a correctement séparé ce qui est générique de ce qui
-est propre à Hyprland. Beaucoup plus sinon — c'est le test de la qualité de J3.
+est propre à Hyprland. Beaucoup plus sinon - c'est le test de la qualité de J3.
 
 ---
 
-## J6 — SELinux en opt-in
+## J6 : SELinux en opt-in
 
 **Artefact vérifiable** : après activation de `[colony-selinux]` et un réétiquetage, `sestatus`
 indique le mode *enforcing* et la machine démarre encore.

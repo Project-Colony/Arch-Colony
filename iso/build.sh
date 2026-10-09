@@ -20,14 +20,14 @@ PKGS="$ROOT/repo/out"
 WORK="$ROOT/iso/work"
 DEST="$ROOT/iso/out"
 
-: "${COLONY_SIGNING_KEY:?not set — see repo/genkey.sh}"
+: "${COLONY_SIGNING_KEY:?not set - see repo/genkey.sh}"
 [[ -d $SRC ]] || { echo "no profile at $SRC" >&2; exit 1; }
 command -v mkarchiso >/dev/null || { echo "mkarchiso missing: pacman -S archiso" >&2; exit 1; }
 
 shopt -s nullglob
 built=("$PKGS"/*.pkg.tar.zst)
 shopt -u nullglob
-(( ${#built[@]} )) || { echo "nothing in repo/out — run repo/build.sh first" >&2; exit 1; }
+(( ${#built[@]} )) || { echo "nothing in repo/out - run repo/build.sh first" >&2; exit 1; }
 
 echo "==> refreshing the local [colony] database"
 ( cd "$PKGS" && rm -f colony.db* colony.files* &&
@@ -47,9 +47,9 @@ fi
 echo "==> staging the profile"
 # mkarchiso runs as root and leaves a root-owned work tree, which a user-level
 # rm cannot remove. Left in place, mkarchiso reuses it and silently reproduces
-# the previous image — a rebuild that changes nothing while reporting success.
+# the previous image - a rebuild that changes nothing while reporting success.
 sudo rm -rf "$WORK"
-[[ -e $WORK ]] && { echo "could not clear $WORK — refusing to build against a stale work tree" >&2; exit 1; }
+[[ -e $WORK ]] && { echo "could not clear $WORK - refusing to build against a stale work tree" >&2; exit 1; }
 mkdir -p "$WORK" "$DEST"
 STAGE="$WORK/profile"
 cp -r "$SRC" "$STAGE"
@@ -61,7 +61,7 @@ sed -i "s|@COLONY_REPO@|$REPO_URL|g" "$STAGE/pacman.conf"
 
 # Colours come from the token system, never from a file in this repository
 # (principe 4). Any *.in under the staged profile is filled in here from
-# Project-Colony-Resources' generated artifact — the same artifact every other
+# Project-Colony-Resources' generated artifact - the same artifact every other
 # Colony program consumes, rather than a second copy of the palette. A template
 # names palette fields directly (@bg_primary@, @accent_blue@, ...), and an
 # unknown name fails the build rather than shipping unstyled; see
@@ -70,7 +70,7 @@ sed -i "s|@COLONY_REPO@|$REPO_URL|g" "$STAGE/pacman.conf"
 # Only under etc/calamares. The profile carries archiso's own
 # usr/local/share/livecd-sound/asound.conf.in, which the livecd-sound script
 # fills in itself at boot; an earlier `**/*.in` here renamed it away, and the
-# live medium has had no ALSA configuration since — quietly, since the script
+# live medium has had no ALSA configuration since - quietly, since the script
 # tolerates the missing file.
 shopt -s nullglob globstar
 templates=("$STAGE"/airootfs/etc/calamares/**/*.in)
@@ -129,7 +129,7 @@ shopt -u nullglob
 # Sign the image, and say so in a checksum file signed alongside it.
 #
 # Every package in [colony] is signed and pacman refuses unsigned ones, which
-# makes it odd to hand someone an unsigned ISO — the first artefact they touch,
+# makes it odd to hand someone an unsigned ISO - the first artefact they touch,
 # the one they write to a USB stick, and the one with no package manager behind
 # it to check anything. `sha256sum -c` catches a corrupted download; only the
 # signature says the image is ours.

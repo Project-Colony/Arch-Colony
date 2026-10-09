@@ -2,7 +2,7 @@
 
 Une distribution Linux dérivée d'Arch, pour l'écosystème [Project Colony](https://github.com/Project-Colony).
 
-Arch Colony est de l'Arch Linux — mêmes dépôts, mêmes miroirs, même `pacman`, mêmes clés —
+Arch Colony est de l'Arch Linux - mêmes dépôts, mêmes miroirs, même `pacman`, mêmes clés -
 plus une couche : les programmes Colony, une identité visuelle dérivée du système de tokens
 partagé, et un durcissement système assumé dont Colony Firewall Control est la couche réseau.
 
@@ -14,7 +14,7 @@ signés par Arch, à la vitesse d'Arch.
 
 ## Télécharger
 
-[**archcolony-2026.09.05-x86_64.iso**](https://github.com/Project-Colony/Arch-Colony/releases/tag/iso-2026.09.05) — 1,7 Go
+[**archcolony-2026.09.05-x86_64.iso**](https://github.com/Project-Colony/Arch-Colony/releases/tag/iso-2026.09.05) - 1,7 Go
 
 Vérifier avant de l'écrire sur quoi que ce soit. La somme de contrôle attrape un
 téléchargement corrompu ; c'est la signature qui dit que l'image vient bien de nous.
@@ -44,11 +44,11 @@ Ce que le dépôt sert aujourd'hui : `calamares`, `colonyctl`, `colony-firewall-
 et sa couche noyau eBPF, `colony-firewall-defaults`, `colony-keyring`, `colony-mirrorlist`,
 `colony-mkinitcpio`, `colony-release`, `paru`.
 
-Le pare-feu s'installe et s'active tout seul : le démon, puis les douze règles système —
-DNS, DHCP, NTP, pacman, ssh — puis seulement la table de filtrage. L'ordre est imposé par
+Le pare-feu s'installe et s'active tout seul : le démon, puis les douze règles système -
+DNS, DHCP, NTP, pacman, ssh - puis seulement la table de filtrage. L'ordre est imposé par
 systemd, parce que l'inverse donne une machine qui ressemble à une panne réseau.
 
-Sur une machine installée, `[colony]` est déjà configuré — les paquets Colony arrivent par
+Sur une machine installée, `[colony]` est déjà configuré - les paquets Colony arrivent par
 `pacman -Syu` comme ceux d'Arch. `colonyctl status` dit ce qui tourne et ce qui protège.
 
 | Document | Contenu |
@@ -84,7 +84,6 @@ docs/          principes, modèle, décisions, feuille de route
 packages/      un répertoire par paquet de [colony]
 iso/           profils archiso, un par édition
 repo/          construction, signature et publication du dépôt
-upstream/      surveillance des décisions d'Arch
 tools/         outillage de développement
 ```
 
@@ -95,7 +94,7 @@ programme se fait dans son dépôt.
 
 | Dépôt | Rôle ici |
 |---|---|
-| [Project-Colony-Resources](https://github.com/Project-Colony/Project-Colony-Resources) | Source des couleurs et des conventions — le thème système en dérive |
+| [Project-Colony-Resources](https://github.com/Project-Colony/Project-Colony-Resources) | Source des couleurs et des conventions - le thème système en dérive |
 | [Colony](https://github.com/Project-Colony/Colony) | Le hub, livré sur les deux éditions |
 | [Colony-Firewall-Control](https://github.com/Project-Colony/Colony-Firewall-Control) | La couche réseau du durcissement |
 | [SphereCord](https://github.com/Project-Colony/SphereCord) | Client Discord, et le modèle de suivi de l'amont |

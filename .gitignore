@@ -7,14 +7,15 @@ iso/out/
 *.pkg.tar.zst.sig
 
 # Upstream source tarballs fetched by makepkg. A PKGBUILD names the URL and
-# pins the sha256, which is the whole point — keeping a copy in git adds a
-# binary blob and no guarantee. calamares/ and paru/ have theirs committed from
-# before this rule; they are left alone rather than rewritten, but nothing new
-# should join them.
+# pins the sha256, which is the whole point: keeping a copy in git adds a
+# binary blob and no guarantee.
 packages/*/*.tar.gz
 packages/*/*.tar.xz
 src/
 pkg/
+
+# Build logs written by devtools and namcap next to each PKGBUILD.
+*.log
 
 # Never commit. The revocation certificate is the only way to announce a
 # compromise; it belongs on offline media, not in a public repository.

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Refuse to finish an installation that would boot to a text console.
 #
-# Calamares cannot ask a shellprocess what the user ticked — the netinstall
+# Calamares cannot ask a shellprocess what the user ticked - the netinstall
 # selections live in global storage, which only a compiled module can read. So
 # this does not warn about a missing choice beforehand; it inspects the result
 # and repairs it, and fails loudly when it cannot.
@@ -23,7 +23,7 @@ shopt -s nullglob
 sessions=("$ROOT"/usr/share/wayland-sessions/*.desktop "$ROOT"/usr/share/xsessions/*.desktop)
 shopt -u nullglob
 
-# No graphical session at all is a legitimate choice — a server, or someone who
+# No graphical session at all is a legitimate choice - a server, or someone who
 # ticked nothing on purpose. Nothing to verify.
 if (( ${#sessions[@]} == 0 )); then
 	echo "no graphical session installed; nothing to verify"
@@ -37,7 +37,7 @@ if [[ -L $ROOT/etc/systemd/system/display-manager.service ]]; then
 	exit 0
 fi
 
-# A greeter is installed but none won the alias — enable one rather than leave
+# A greeter is installed but none won the alias - enable one rather than leave
 # the machine unusable. Preference order matches shellprocess_services.conf.
 for unit in sddm gdm lightdm plasmalogin cosmic-greeter ly@tty1 greetd; do
 	# An instance (ly@tty1) is backed by a template file (ly@.service).
@@ -59,7 +59,7 @@ a desktop without one leaves you at a login: prompt that looks like a failure.
 Nothing here can be repaired without a greeter on the disk, so the install is
 stopped rather than finished into something unusable.
 
-Start the installer again and tick one under "Écran de connexion" — SDDM suits
+Start the installer again and tick one under "Écran de connexion" - SDDM suits
 every desktop offered.
 
 MSG

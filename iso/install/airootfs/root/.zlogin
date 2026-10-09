@@ -8,17 +8,17 @@ fi
 # Arch Colony: ask before touching the network, then run the installer in a
 # Wayland kiosk on the first virtual terminal.
 #
-# The live image boots with networking off — systemd-networkd, resolved, iwd and
+# The live image boots with networking off - systemd-networkd, resolved, iwd and
 # ModemManager are not enabled in the airootfs. That is deliberate and stronger
 # than a checkbox inside the installer: someone who does not want this machine
 # reaching the internet does not merely decline a download, the interfaces never
 # come up at all. Everything except the optional package selection works offline.
 #
-# Not exec'd — if cage or calamares fails, the live session must fall back to a
+# Not exec'd - if cage or calamares fails, the live session must fall back to a
 # usable shell rather than to nothing.
 if [[ -z $WAYLAND_DISPLAY && $XDG_VTNR == 1 ]]; then
     print
-    print "Arch Colony — le réseau est désactivé."
+    print "Arch Colony - le réseau est désactivé."
     print "Il n'est nécessaire que pour installer des logiciels supplémentaires ;"
     print "l'installation elle-même fonctionne hors ligne."
     print
@@ -43,7 +43,7 @@ if [[ -z $WAYLAND_DISPLAY && $XDG_VTNR == 1 ]]; then
     print
 
     # libseat tries seatd before logind and prints two red lines when it does not
-    # find it. There is no seatd in this image and there is no reason for one —
+    # find it. There is no seatd in this image and there is no reason for one -
     # logind provides the seat. Naming the backend skips the failed attempt
     # instead of hiding its message, which is the difference between silencing a
     # warning and not producing it.
@@ -55,7 +55,7 @@ if [[ -z $WAYLAND_DISPLAY && $XDG_VTNR == 1 ]]; then
     #   failed to create the wlroots renderer
     #   installer exited (1)
     #
-    # Mesa routes nouveau's OpenGL through zink — OpenGL on top of Vulkan — since
+    # Mesa routes nouveau's OpenGL through zink - OpenGL on top of Vulkan - since
     # the classic driver was dropped, so a card whose Vulkan support is missing or
     # too old takes EGL, wlroots and the whole installer down with it. Nothing was
     # wrong with the machine; it simply could not be installed on.
@@ -74,13 +74,13 @@ if [[ -z $WAYLAND_DISPLAY && $XDG_VTNR == 1 ]]; then
     if (( _colony_rc != 0 )); then
         print
         print "L'installateur graphique n'a pas démarré (code $_colony_rc)."
-        print "Nouvelle tentative en rendu logiciel — c'est plus lent, pas moins fiable."
+        print "Nouvelle tentative en rendu logiciel - c'est plus lent, pas moins fiable."
         print
         LIBSEAT_BACKEND=logind WLR_RENDERER=pixman LIBGL_ALWAYS_SOFTWARE=1 \
             QT_WAYLAND_DISABLE_WINDOWDECORATION=1 cage -- calamares
         _colony_rc=$?
     fi
 
-    print "installer exited ($_colony_rc) — you are at a shell"
+    print "installer exited ($_colony_rc) - you are at a shell"
     unset _colony_rc
 fi

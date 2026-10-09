@@ -1,4 +1,4 @@
-# Arch Colony installer branding — a template.
+# Arch Colony installer branding - a template.
 #
 # No colour is written in this repository (principe 4). The four the sidebar
 # needs are named below as palette fields (@bg_sidebar@, ...) and filled in by
@@ -43,7 +43,7 @@ images:
 slideshow:    "show.qml"
 slideshowAPI: 2
 
-# Also not optional — omitting the block is fatal:
+# Also not optional - omitting the block is fatal:
 #   WARNING: YAML error  invalid node; first invalid key: "style"
 #
 # These four are the only colours Calamares 3.4 reads from this file: the step

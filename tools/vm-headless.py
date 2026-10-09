@@ -62,7 +62,7 @@ def monitor(cmd, wait=0.3):
     try:
         s.connect(str(SOCK))
     except OSError:
-        fail(f"no VM listening on {SOCK} — start one first")
+        fail(f"no VM listening on {SOCK} - start one first")
     s.settimeout(2)
     time.sleep(0.15)
     try:
@@ -116,7 +116,7 @@ def start(profile):
         profile, f"archcolony-{profile}-*.iso")
     isos = sorted((ROOT / "iso/out").glob(pattern), key=lambda p: p.stat().st_mtime)
     if not isos:
-        fail(f"no ISO matching {pattern} in iso/out — run iso/build.sh first")
+        fail(f"no ISO matching {pattern} in iso/out - run iso/build.sh first")
     iso = isos[-1]
     STATE.mkdir(parents=True, exist_ok=True)
     DISK.unlink(missing_ok=True)
@@ -129,7 +129,7 @@ def start(profile):
 
 def installed():
     if not DISK.is_file():
-        fail(f"no disk at {DISK} — nothing was installed yet")
+        fail(f"no disk at {DISK} - nothing was installed yet")
     if not VARS.is_file():
         subprocess.run(["cp", "-f", "/usr/share/edk2/x64/OVMF_VARS.4m.fd", str(VARS)], check=True)
     print(f"booting {DISK}")
@@ -173,7 +173,7 @@ def type_text(text):
     try:
         s.connect(str(SOCK))
     except OSError:
-        fail(f"no VM listening on {SOCK} — start one first")
+        fail(f"no VM listening on {SOCK} - start one first")
     s.settimeout(1)
     time.sleep(0.15)
     try:

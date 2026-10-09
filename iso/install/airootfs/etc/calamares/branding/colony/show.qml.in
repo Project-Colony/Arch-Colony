@@ -1,4 +1,4 @@
-// Arch Colony installer slideshow — a template: every colour is a field of
+// Arch Colony installer slideshow - a template: every colour is a field of
 // the Colony palette, filled in at ISO build time (tools/resolve-theme.py).
 import QtQuick 2.0;
 import calamares.slideshow 1.0;
@@ -57,7 +57,7 @@ Presentation
             color: "@text_secondary@"
             font.pixelSize: 15
             lineHeight: 1.25
-            text: "Arch Linux — mêmes dépôts, mêmes miroirs, même rythme de mise à jour.<br/>" +
+            text: "Arch Linux : mêmes dépôts, mêmes miroirs, même rythme de mise à jour.<br/>" +
                   "Plus une couche : noyau durci, pare-feu applicatif, " +
                   "et les programmes de l'écosystème Colony."
         }

@@ -17,7 +17,7 @@ pacman_conf="pacman.conf"
 #
 #   erofs (device loop0): failed to read inode meta block (nid: 9275766): -4
 #
-# The image itself is sound — the host kernel mounts it and reads files from it
+# The image itself is sound - the host kernel mounts it and reads files from it
 # without complaint. The difference is on the kernel side, and since we do not
 # control linux-hardened's configuration (ADR-0004), the answer is to use the
 # format Arch's own installer ISO uses and that every Arch kernel is tested with.

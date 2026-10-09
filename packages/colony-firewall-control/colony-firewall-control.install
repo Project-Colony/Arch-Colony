@@ -3,7 +3,7 @@
 # CFC starts on profile `balanced` with no rules, and with no rules every
 # outbound flow is refused until someone answers a prompt. Enabling it from a
 # scriptlet would hand the user a machine that looks exactly like a broken
-# network on first boot — the failure mode principe 5 and the J4 section of the
+# network on first boot - the failure mode principe 5 and the J4 section of the
 # roadmap both warn about. Turning it on is a distribution policy decision, and
 # under ADR-0007 that belongs in a systemd preset shipped by a Colony
 # configuration package, seeded with `cfc rules bootstrap-defaults` and fitted
@@ -24,7 +24,7 @@ Colony Firewall Control is installed but not running.
 
                  In that order. Every cfc subcommand opens the daemon socket
                  first, so seeding rules before the daemon runs fails on a
-                 missing /run/colony-firewall/cfc.sock and seeds nothing —
+                 missing /run/colony-firewall/cfc.sock and seeds nothing -
                  leaving the fail-closed chain loaded with no rules at all.
 
   To use the UI: usermod -aG colony-firewall <user>   # then log out and back in
@@ -39,7 +39,7 @@ EOF
 post_upgrade() {
 	# The daemon loads the eBPF object once, at startup. After an upgrade the
 	# new object is on disk while the old programs are still pinned in the
-	# kernel and still enforcing — which is correct, that is the property worth
+	# kernel and still enforcing - which is correct, that is the property worth
 	# having, but it means the running daemon is older than the object beside it.
 	#
 	# Not restarted automatically. A restart is safe (the pins outlive it) but
@@ -59,7 +59,7 @@ deletes 'table inet colony_firewall' before it is re-added. For that window
 there is no NFQUEUE chain: a new outbound flow that the pinned eBPF maps have
 no verdict for goes out unfiltered and unprompted.
 
-What does survive is the pinned layer — anything the kernel already has a
+What does survive is the pinned layer - anything the kernel already has a
 verdict for keeps being refused while the daemon is down.
 
 EOF
@@ -69,7 +69,7 @@ EOF
 pre_remove() {
 	# Both units, and both tables. Upstream's own scriptlet stops
 	# colony-firewall-nft and deletes `table inet colony_firewall`, but forgets
-	# the inbound pair — so removing the package on a machine where the inbound
+	# the inbound pair - so removing the package on a machine where the inbound
 	# chain was enabled leaves an orphan filtering table with nothing left to
 	# manage it. On a host reached over the network that is the lockout the
 	# separate unit existed to prevent.

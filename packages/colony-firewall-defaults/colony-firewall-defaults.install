@@ -1,4 +1,4 @@
-# Unlike colony-firewall-control's scriptlet, this one DOES enable things —
+# Unlike colony-firewall-control's scriptlet, this one DOES enable things -
 # that is the entire reason the package exists. Turning a firewall on is a
 # distribution's decision, so it lives in a distribution package that someone
 # installs on purpose, not in the upstream package that anyone might (ADR-0007).
@@ -8,7 +8,7 @@ _units='colony-firewalld.service colony-firewall-seed.service colony-firewall-nf
 # Everyone who logs in at a seat, so the prompt window can reach the daemon.
 #
 # The control socket is group-owned by colony-firewall, and without membership
-# the UI autostarts and greets the user with "permission denied" — which is what
+# the UI autostarts and greets the user with "permission denied" - which is what
 # happened on the first real install. Doing it here rather than leaving it as a
 # command in a message is the difference between a firewall people use and one
 # they turn off.
@@ -40,13 +40,13 @@ post_install() {
 Colony Firewall Control will start at the next boot, in this order:
 
   colony-firewalld       the daemon
-  colony-firewall-seed   the twelve `system` rules — DNS, DHCP, NTP, pacman, ssh
+  colony-firewall-seed   the twelve `system` rules - DNS, DHCP, NTP, pacman, ssh
   colony-firewall-nft    the filtering table, last
 
 Each step waits on the one before it, so the fail-closed table can never be
 loaded without a daemon behind it or without rules in it.
 
-Anything outside those twelve rules — a browser, a chat client — is held until
+Anything outside those twelve rules - a browser, a chat client - is held until
 you answer a prompt. The tray and the window do that; `cfc prompts` does it from
 a terminal.
 

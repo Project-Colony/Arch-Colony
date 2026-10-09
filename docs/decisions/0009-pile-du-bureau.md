@@ -1,13 +1,13 @@
-# ADR-0009 — Pile du bureau : ce qu'on réutilise, ce qu'on écrit
+# ADR-0009 - Pile du bureau : ce qu'on réutilise, ce qu'on écrit
 
-**Statut** : acceptée — 2026-08-20
+**Statut** : acceptée - 2026-08-20
 
 ## Contexte
 
 La question « faut-il faire un environnement de bureau Colony ? » cache des coûts qui
 varient d'un facteur cent selon où l'on place la frontière. Un compositeur Wayland écrit
-depuis zéro — entrées, multi-écran, HiDPI, échelle fractionnaire, VRR, capture d'écran,
-XWayland, verrouillage de session, puis la traîne des bugs matériels — représente des
+depuis zéro - entrées, multi-écran, HiDPI, échelle fractionnaire, VRR, capture d'écran,
+XWayland, verrouillage de session, puis la traîne des bugs matériels - représente des
 années de travail, et c'est là que meurent les projets de bureau.
 
 Le reste se réutilise, et deux des composants qui mériteraient d'être écrits tombent
@@ -37,14 +37,14 @@ laquelle une application confinée demande au bureau ce qu'elle ne peut pas pren
 elle-même : sélecteur de fichiers, capture d'écran, partage d'écran, ouverture d'URL. Elle
 fonctionne aussi sous X11.
 
-Elle compte davantage sous Wayland parce que la capture d'écran **doit** passer par elle —
+Elle compte davantage sous Wayland parce que la capture d'écran **doit** passer par elle -
 il n'existe pas d'équivalent au « on lit le framebuffer » de X11.
 
 Conséquence d'empaquetage, et c'est le piège : le portail générique ne fait rien seul, il
 délègue à une **dorsale**. Il en faut deux, et pour des raisons différentes :
 
-- `xdg-desktop-portal-hyprland` — capture et partage d'écran
-- `xdg-desktop-portal-gtk` — sélecteur de fichiers, que la dorsale Hyprland n'implémente pas
+- `xdg-desktop-portal-hyprland` - capture et partage d'écran
+- `xdg-desktop-portal-gtk` - sélecteur de fichiers, que la dorsale Hyprland n'implémente pas
 
 Oublier la seconde donne un système où enregistrer un fichier depuis une application
 confinée échoue sans message clair. Oublier la première casse le partage d'écran dans
@@ -58,7 +58,7 @@ par un méta-paquet. Ce qui reste à nous : la configuration, le thème, et plus
 Colony Shell puis l'application de réglages.
 
 **Noctalia est explicitement transitoire.** Il est adopté parce qu'il fonctionne, pas parce
-qu'il est définitif — voir le point ouvert de [ADR-0005](0005-deux-editions.md). La
+qu'il est définitif - voir le point ouvert de [ADR-0005](0005-deux-editions.md). La
 conséquence pratique reste la même : la configuration de session doit être un paquet
 séparable, pour que le remplacer soit un changement de dépendance et non une refonte.
 
@@ -68,8 +68,8 @@ séparé, calendrier séparé.
 
 ## Alternatives écartées
 
-- **Écrire un compositeur** — des années, pour reproduire ce que Hyprland fait déjà.
+- **Écrire un compositeur** - des années, pour reproduire ce que Hyprland fait déjà.
 - **Environnement de bureau complet** (gestionnaire de fichiers, centre de contrôle, suite
-  d'applications) — engagement pluriannuel de maintenance contre un écosystème Wayland
+  d'applications) - engagement pluriannuel de maintenance contre un écosystème Wayland
   mouvant. Le mot compte : « Colony Shell » promet une barre et une identité, « Colony
   Desktop Environment » promet dix ans d'entretien.

@@ -6,7 +6,7 @@
 Resolves the Calamares branding templates for the given palette (default
 stellar_blade/lily) the way iso/build.sh does, applies the stylesheet to the
 widgets the installer actually uses, and writes OUT_DIR/gallery.png (default
-iso/out/theme-preview/). Offscreen — needs pyside6, not a display. Hover states
+iso/out/theme-preview/). Offscreen - needs pyside6, not a display. Hover states
 are not rendered offscreen; everything else is.
 
 The sidebar's four colours come from branding.desc, not the stylesheet, so the

@@ -14,12 +14,12 @@ ROOT="$(realpath "$(dirname "$(realpath "$0")")/..")"
 OUT="$ROOT/repo/out"
 KEYRING="$ROOT/packages/colony-keyring"
 
-: "${COLONY_SIGNING_KEY:?not set — see repo/genkey.sh}"
+: "${COLONY_SIGNING_KEY:?not set - see repo/genkey.sh}"
 
 shopt -s nullglob
 pkgs=("$OUT"/*.pkg.tar.zst)
 shopt -u nullglob
-(( ${#pkgs[@]} )) || { echo "nothing in repo/out — run repo/build.sh first" >&2; exit 1; }
+(( ${#pkgs[@]} )) || { echo "nothing in repo/out - run repo/build.sh first" >&2; exit 1; }
 
 TEST=$(mktemp -d /tmp/colony-repotest.XXXXXX)
 trap 'sudo rm -rf "$TEST"' EXIT
@@ -66,5 +66,5 @@ echo
 echo "==> installed file:"
 sed 's/^/    /' "$installed"
 echo
-echo "PASS — signed database verified, signed package verified, trust established"
+echo "PASS - signed database verified, signed package verified, trust established"
 echo "       from colony-keyring alone."

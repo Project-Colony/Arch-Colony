@@ -6,7 +6,7 @@
 #   ./tools/run-iso.sh install bios boot in BIOS mode instead of UEFI
 #
 # UEFI is the default and it matters: under BIOS, Calamares installs GRUB, which
-# is not what we ship — modules/bootloader.conf specifies systemd-boot, and that
+# is not what we ship - modules/bootloader.conf specifies systemd-boot, and that
 # is UEFI-only. Testing under BIOS validates a path no user will take.
 
 set -euo pipefail
@@ -14,9 +14,9 @@ set -euo pipefail
 ROOT="$(realpath "$(dirname "$(realpath "$0")")/..")"
 PROFILE="${1:-install}"
 FIRMWARE="${2:-uefi}"
-# Not /tmp. On Arch /tmp is tmpfs, so a completed installation — the artefact
-# that took an hour of clicking through Calamares and answering firewall prompts
-# — is gone the next time the host reboots. That is exactly what happened on
+# Not /tmp. On Arch /tmp is tmpfs, so a completed installation (the artefact
+# that took an hour of clicking through Calamares and answering firewall prompts)
+# is gone the next time the host reboots. That is exactly what happened on
 # 2026-08-21, and the disk was already an hour old.
 #
 # ~/.cache is the right shelf for it: persistent, per-user, outside the
@@ -35,11 +35,11 @@ esac
 shopt -s nullglob
 isos=("$ROOT/iso/out/"$pattern)
 shopt -u nullglob
-(( ${#isos[@]} )) || { echo "no ISO matching $pattern in iso/out — run iso/build.sh first" >&2; exit 1; }
+(( ${#isos[@]} )) || { echo "no ISO matching $pattern in iso/out - run iso/build.sh first" >&2; exit 1; }
 ISO="${isos[-1]}"
 
 command -v qemu-system-x86_64 >/dev/null || { echo "qemu missing: pacman -S qemu-desktop" >&2; exit 1; }
-[[ -r /dev/kvm ]] || echo "WARNING: /dev/kvm unavailable — this will be extremely slow. Enable SVM/VT-x in firmware." >&2
+[[ -r /dev/kvm ]] || echo "WARNING: /dev/kvm unavailable - this will be extremely slow. Enable SVM/VT-x in firmware." >&2
 
 echo "==> fresh target disk: $DISK ($DISK_SIZE)"
 rm -f "$DISK"
@@ -64,7 +64,7 @@ if [[ $FIRMWARE == uefi ]]; then
 	       -drive "if=pflash,format=raw,file=$VARS")
 	echo "==> firmware: UEFI"
 else
-	echo "==> firmware: BIOS — note that this installs GRUB, not systemd-boot"
+	echo "==> firmware: BIOS - note that this installs GRUB, not systemd-boot"
 fi
 
 echo "==> $(basename "$ISO")"
