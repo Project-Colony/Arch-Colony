@@ -5,7 +5,9 @@
 #   ./iso/build.sh hyprland   build another profile
 #
 # COLONY_THEME=family/variant picks the palette (default stellar_blade/lily);
-# see Project-Colony-Resources/generated/themes.json for the choices.
+# see generated/themes.json in Project-Colony-Resources for the choices.
+#
+# Downloads archinstall and themes.json at the commits iso/pins.env names.
 #
 # Requires the packages in repo/out (run repo/build.sh first) and the Colony key
 # in this machine's pacman keyring, since the profile verifies [colony] at its
@@ -54,6 +56,11 @@ mkdir -p "$WORK" "$DEST"
 STAGE="$WORK/profile"
 cp -r "$SRC" "$STAGE"
 
+# The inputs that do not live in this repository, at the commits iso/pins.env
+# pins, so that the same commit of Arch Colony builds the same installer.
+INPUTS="$WORK/inputs"
+"$ROOT/iso/fetch-inputs.sh" "$INPUTS"
+
 # A file:// URL cannot contain a raw space, and this repository lives under a
 # path that has one.
 REPO_URL=${PKGS// /%20}
@@ -62,10 +69,11 @@ sed -i "s|@COLONY_REPO@|$REPO_URL|g" "$STAGE/pacman.conf"
 # Colours come from the token system, never from a file in this repository
 # (principe 4). Any *.in under the staged profile is filled in here from
 # Project-Colony-Resources' generated artifact - the same artifact every other
-# Colony program consumes, rather than a second copy of the palette. A template
-# names palette fields directly (@bg_primary@, @accent_blue@, ...), and an
-# unknown name fails the build rather than shipping unstyled; see
-# tools/resolve-theme.py. COLONY_THEME=family/variant picks another palette.
+# Colony program consumes, rather than a second copy of the palette, fetched at
+# the commit iso/pins.env names. A template names palette fields directly
+# (@bg_primary@, @accent_blue@, ...), and an unknown name fails the build rather
+# than shipping unstyled; see tools/resolve-theme.py. COLONY_THEME=family/variant
+# picks another palette.
 #
 # Only under etc/calamares. The profile carries archiso's own
 # usr/local/share/livecd-sound/asound.conf.in, which the livecd-sound script
@@ -76,15 +84,8 @@ shopt -s nullglob globstar
 templates=("$STAGE"/airootfs/etc/calamares/**/*.in)
 shopt -u nullglob globstar
 if (( ${#templates[@]} )); then
-	RESOURCES="${COLONY_RESOURCES:-$ROOT/../Project-Colony-Resources}"
-	THEMES="$RESOURCES/generated/themes.json"
-	[[ -f $THEMES ]] || {
-		echo "cannot resolve theme tokens: $THEMES not found." >&2
-		echo "Set COLONY_RESOURCES to the Project-Colony-Resources checkout." >&2
-		exit 1
-	}
-	echo "==> resolving theme tokens from $THEMES"
-	python3 "$ROOT/tools/resolve-theme.py" "$THEMES" "${COLONY_THEME:-stellar_blade/lily}" \
+	echo "==> resolving theme tokens"
+	python3 "$ROOT/tools/resolve-theme.py" "$INPUTS/themes.json" "${COLONY_THEME:-stellar_blade/lily}" \
 		"${templates[@]}" | sed "s|$STAGE/||g"
 fi
 
@@ -93,12 +94,6 @@ fi
 # day the ISO is built rather than something to keep in git. Desktop and driver
 # definitions are derived from archinstall (GPL-3.0-or-later, same as us).
 if [[ -f "$STAGE/airootfs/etc/calamares/modules/netinstall.conf" ]]; then
-	ARCHINSTALL="${COLONY_ARCHINSTALL:-$WORK/archinstall}"
-	if [[ ! -d $ARCHINSTALL ]]; then
-		echo "==> fetching archinstall (desktop and driver definitions)"
-		git clone -q --depth 1 https://github.com/archlinux/archinstall.git "$ARCHINSTALL" \
-			|| { echo "cannot fetch archinstall; set COLONY_ARCHINSTALL to a checkout" >&2; exit 1; }
-	fi
 	echo "==> generating the installer package tree"
 	# Written to /usr/share, not to the path Calamares reads. .zlogin copies it
 	# into place only if the user allowed network access at boot; otherwise it
@@ -106,7 +101,7 @@ if [[ -f "$STAGE/airootfs/etc/calamares/modules/netinstall.conf" ]]; then
 	# download, so offering it to someone who declined the network would let them
 	# select twenty desktops and reach a green "Finished" with none of them.
 	mkdir -p "$STAGE/airootfs/usr/share/colony"
-	"$ROOT/tools/gen-netinstall.py" --archinstall "$ARCHINSTALL" \
+	"$ROOT/tools/gen-netinstall.py" --archinstall "$INPUTS/archinstall" \
 		> "$STAGE/airootfs/usr/share/colony/netinstall.yaml"
 fi
 

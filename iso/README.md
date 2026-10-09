@@ -24,3 +24,15 @@ même paquet.
   probablement non, et le documenter comme un choix plutôt que le laisser par défaut.
 - Les deux éditions doivent partager `base/` autant que possible. La qualité de cette
   séparation détermine le coût de J5.
+
+## Pinned inputs
+
+`build.sh` downloads two inputs that do not live in this repository: archinstall, for
+the installer's desktop and driver lists, and `generated/themes.json` from
+Project-Colony-Resources, for the installer's palette. [`pins.env`](pins.env) pins both
+to a commit, and `themes.json` to a sha256 as well. [`fetch-inputs.sh`](fetch-inputs.sh)
+fetches them, for the build and for CI alike, so CI checks exactly the inputs the next
+image is built from.
+
+To move a pin, edit `pins.env` in a pull request. CI resolves the templates and
+generates the package tree from the new inputs before it merges.
