@@ -9,7 +9,7 @@
 # What a pass proves: the database signature verifies, the package signatures verify,
 # and colony-keyring establishes trust from nothing. Then, through the same stanza, a
 # database served without its signature and a database signed by a key nobody
-# trusts are both refused.
+# trusts are both refused. Only the first refusal depends on the stanza's SigLevel.
 
 set -euo pipefail
 
@@ -30,7 +30,12 @@ shopt -u nullglob
 (( ${#pkgs[@]} )) || { echo "nothing in repo/out - run repo/build.sh first" >&2; exit 1; }
 
 TEST=$(mktemp -d /tmp/colony-repotest.XXXXXX)
-trap 'gpgconf --homedir "$TEST/foreign" --kill gpg-agent 2>/dev/null; $SUDO rm -rf "$TEST"' EXIT
+# pacman-key starts a gpg-agent for $TEST/gnupg, gpg one for $TEST/foreign.
+# Stop both rather than count on them noticing their home directory is gone.
+# errexit holds inside the trap too, so a failed kill must not skip the rm.
+trap 'gpgconf --homedir "$TEST/foreign" --kill all 2>/dev/null || :
+	$SUDO gpgconf --homedir "$TEST/gnupg" --kill all 2>/dev/null || :
+	$SUDO rm -rf "$TEST"' EXIT
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 
@@ -93,7 +98,10 @@ echo "==> syncing"
 pac pacman.conf db -Sy --noconfirm
 
 echo "==> installing colony-mirrorlist from the repository"
-pac pacman.conf db -S --noconfirm colony-mirrorlist
+# The sandbox root has no shell for colony-mirrorlist.install to run in, and
+# pacman would only print an error for it: tools/test-mirrorlist-migration.sh
+# tests that scriptlet.
+pac pacman.conf db -S --noconfirm --noscriptlet colony-mirrorlist
 
 installed="$TEST/root/etc/pacman.d/colony-mirrorlist"
 [[ -f $installed ]] || fail "colony-mirrorlist did not land at $installed"
@@ -124,11 +132,14 @@ gpg --homedir "$TEST/foreign" --batch --quiet --yes --detach-sign --no-armor \
 	--output "$TEST/served/colony.db.tar.zst.sig" "$TEST/served/colony.db.tar.zst"
 # In the keyring but never signed off on: what pacman would hold after fetching
 # an attacker's key from a keyserver. It also keeps pacman from going to look.
+# This refusal is the keyring's, not the stanza's: pacman checks a signature
+# that is present under DatabaseOptional too, and wants a trusted key for it.
 gpg --homedir "$TEST/foreign" --export > "$TEST/foreign.gpg"
 $SUDO pacman-key --gpgdir "$TEST/gnupg" --add "$TEST/foreign.gpg"
 refused "a database signed by a foreign key" pacman.conf db-foreign
 
 echo
 echo "PASS - signed database verified, signed package verified, trust established"
-echo "       from colony-keyring alone; an unsigned database and one signed by a"
-echo "       foreign key were both refused by the shipped [colony] stanza."
+echo "       from colony-keyring alone; an unsigned database was refused by the"
+echo "       SigLevel of the shipped [colony] stanza, and one signed by a foreign"
+echo "       key was refused because colony-keyring does not vouch for that key."

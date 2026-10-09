@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Runs colony-mirrorlist.install's post_upgrade against pacman.conf files shaped
-# like the ones installed machines hold. Needs no root and touches nothing
-# outside a temporary directory.
+# Runs colony-mirrorlist.install's post_upgrade and post_install against
+# pacman.conf files shaped like the ones installed machines hold. Needs no root
+# and touches nothing outside a temporary directory.
 #
 # What a pass proves: the stanza the installer appended before pkgrel 6 gains
 # exactly one line, right after its header, and pacman reads it as
@@ -51,9 +51,10 @@ EOF
 }
 
 # The way pacman calls it: sourced, then the function, with new and old versions.
+# post_upgrade unless $hook names another.
 migrate() {
 	# shellcheck disable=SC1091
-	( . "$PKG/colony-mirrorlist.install"; _pacman_conf=$1; post_upgrade 20260819-6 20260819-5 )
+	( . "$PKG/colony-mirrorlist.install"; _pacman_conf=$1; "${hook:-post_upgrade}" 20260819-6 20260819-5 )
 }
 
 expect_added() {
@@ -88,6 +89,10 @@ expect_untouched() {
 # Appended at the end, as shellprocess_cleanup.conf has always done.
 { stock; old_stanza; } > "$TEST/appended.conf"
 expect_added appended
+
+# Declared by hand from an older stanza, then colony-mirrorlist installed fresh.
+{ stock; old_stanza; } > "$TEST/first-install.conf"
+hook=post_install expect_added first-install
 
 # Declared before [core] by hand, as colony-mirrorlist's header suggests, with
 # the stray whitespace pacman tolerates around a header.

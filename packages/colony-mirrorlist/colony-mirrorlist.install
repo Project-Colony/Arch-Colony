@@ -43,6 +43,12 @@ _require_signed_db() {
 	echo "colony-mirrorlist: added 'SigLevel = Required DatabaseRequired' to [colony] in $conf, so an unsigned colony.db is refused"
 }
 
+# Also on a first install: a machine that declared [colony] by hand from an
+# older stanza has nothing to upgrade from.
+post_install() {
+	_require_signed_db
+}
+
 post_upgrade() {
 	_require_signed_db
 }
