@@ -1,6 +1,6 @@
 pkgbase = colony-firewall-control
 	pkgver = 0.2.2
-	pkgrel = 1
+	pkgrel = 2
 	url = https://github.com/Project-Colony/Colony-Firewall-Control
 	arch = x86_64
 	license = GPL-3.0-or-later
@@ -21,7 +21,7 @@ pkgname = colony-firewall-control
 	depends = libxkbcommon
 	depends = wayland
 	depends = hicolor-icon-theme
-	depends = colony-firewall-control-ebpf=0.2.2-1
+	depends = colony-firewall-control-ebpf=0.2.2-2
 	optdepends = libnotify: desktop notifications on new prompts
 	optdepends = libx11: run the GUI in X11/XWayland sessions
 	backup = etc/colony-firewall/daemon.toml

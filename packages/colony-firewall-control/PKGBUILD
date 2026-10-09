@@ -39,7 +39,7 @@
 pkgbase=colony-firewall-control
 pkgname=('colony-firewall-control' 'colony-firewall-control-ebpf')
 pkgver=0.2.2
-pkgrel=1
+pkgrel=2
 arch=('x86_64')
 url='https://github.com/Project-Colony/Colony-Firewall-Control'
 license=('GPL-3.0-or-later')
