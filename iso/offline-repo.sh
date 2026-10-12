@@ -23,6 +23,12 @@ DEST=${1:?usage: iso/offline-repo.sh DEST [PKGNAME ...]}
 shift
 (( $# )) || set -- colony-firewall-defaults colony-firewall-control colony-firewall-control-ebpf
 
+# gpg --verify accepts a signature from any key in this keyring. The installer
+# accepts only the Colony key, so check the signer against the one named here.
+fpr=$(gpg --batch --with-colons --fingerprint "$COLONY_SIGNING_KEY" 2>/dev/null |
+	awk -F: '/^fpr:/ {print $10; exit}')
+[[ -n $fpr ]] || { echo "COLONY_SIGNING_KEY $COLONY_SIGNING_KEY is not in this keyring" >&2; exit 1; }
+
 mkdir -p "$DEST"
 for name in "$@"; do
 	# name-pkgver-pkgrel-arch: a pkgver starts with a digit and holds no dash,
@@ -35,8 +41,10 @@ for name in "$@"; do
 	pkg=${found[0]}
 	# The installer would refuse it anyway, but only on someone's machine, after
 	# partitioning. Here it stops the build.
-	gpg --batch --quiet --verify "$pkg.sig" "$pkg" 2>/dev/null ||
-		{ echo "${pkg##*/}: missing or bad signature - run repo/build.sh" >&2; exit 1; }
+	# VALIDSIG ends with the primary key's fingerprint, also for a subkey signature.
+	gpg --batch --status-fd 1 --verify "$pkg.sig" "$pkg" 2>/dev/null |
+		awk -v fpr="$fpr" '$2 == "VALIDSIG" && $NF == fpr {ok = 1} END {exit !ok}' ||
+		{ echo "${pkg##*/}: signature missing, bad or not made by $COLONY_SIGNING_KEY - run repo/build.sh" >&2; exit 1; }
 	cp "$pkg" "$pkg.sig" "$DEST/"
 done
 
