@@ -364,12 +364,12 @@ def current_step(path):
     return band
 
 
-def wait_until(what, probe, timeout, interval=3):
-    """Poll probe() until it returns something truthy; fail after timeout."""
+def wait_until(what, probe, timeout, interval=3, failure=fail):
+    """Poll probe() until it returns something truthy; failure() after timeout."""
     deadline = time.monotonic() + timeout
     while not (found := probe()):
         if time.monotonic() > deadline:
-            fail(f"timed out after {timeout} s waiting for {what}")
+            failure(f"timed out after {timeout} s waiting for {what}")
         time.sleep(interval)
     return found
 
@@ -425,7 +425,8 @@ def autoinstall():
     keys(["n"])
     # cage falls back to software rendering after a failed first start, which
     # takes a while on a VM without a GPU.
-    wait_until("the installer's first page", lambda: current_step(screen) is not None, 600)
+    wait_until("the installer's first page", lambda: current_step(screen) is not None, 600,
+               failure=failed)
     print("==> through the installer's pages")
     for page in ("Location", "Keyboard", "Partitions", "Software", "Users"):
         advance(["alt-n"], page)
@@ -444,7 +445,8 @@ def autoinstall():
     print("==> installing")
     pattern = re.compile(r"completion: (succeeded|failed)|Installation failed:.*")
     found = wait_until("the installation to finish", lambda: pattern.search(
-        guest_exec(["/usr/bin/cat", "/root/.cache/calamares/session.log"])[1]), 2700, interval=10)
+        guest_exec(["/usr/bin/cat", "/root/.cache/calamares/session.log"])[1]), 2700, interval=10,
+        failure=failed)
     fetch_log()
     if found.group(1) != "succeeded":
         failed(f"the installation failed: {found.group(0)}")
