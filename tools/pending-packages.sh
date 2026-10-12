@@ -50,7 +50,7 @@ for srcinfo in "${srcinfos[@]}"; do
 	pending=0
 	# One directory can build several packages (colony-firewall-control and its
 	# -ebpf). It is pending as soon as one of them is.
-	for name in $(sed -n 's/^pkgname = //p' "$srcinfo"); do
+	while read -r name; do
 		published=${served[$name]:-}
 		if [[ -z $published ]]; then
 			pending=1
@@ -63,7 +63,7 @@ for srcinfo in "${srcinfos[@]}"; do
 			echo "$name $version is older than the published $published: refusing a downgrade" >&2
 			failed=1
 		fi
-	done
+	done < <(sed -n 's/^pkgname = //p' "$srcinfo")
 	if (( pending )); then
 		echo "$dir"
 	fi

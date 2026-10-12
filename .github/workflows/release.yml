@@ -181,7 +181,8 @@ jobs:
           declare -A pending=() built=() dir_of=()
           for d in "${dirs[@]}"; do pending[$d]=1; done
           for srcinfo in packages/*/.SRCINFO; do
-            for name in $(sed -n 's/^pkgname = //p' "$srcinfo"); do
+            mapfile -t names < <(sed -n 's/^pkgname = //p' "$srcinfo")
+            for name in "${names[@]}"; do
               dir_of[$name]=$(basename "$(dirname "$srcinfo")")
             done
           done
@@ -190,10 +191,11 @@ jobs:
           # installed from here: the published one is the version this release
           # replaces.
           build() {
-            local dir=$1 dep need
+            local dir=$1 dep need deps
             [[ -z ${built[$dir]:-} ]] || return 0
             built[$dir]=1
-            for dep in $(sed -nE 's/^\t(make|check)?depends = ([^<>=]+).*/\2/p' "packages/$dir/.SRCINFO" | sort -u); do
+            mapfile -t deps < <(sed -nE 's/^\t(make|check)?depends = ([^<>=]+).*/\2/p' "packages/$dir/.SRCINFO" | sort -u)
+            for dep in "${deps[@]}"; do
               need=${dir_of[$dep]:-}
               [[ -n $need && $need != "$dir" && -n ${pending[$need]:-} ]] || continue
               build "$need"
