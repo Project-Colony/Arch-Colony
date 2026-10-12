@@ -58,8 +58,10 @@ checksum, package list, `colony.gpg` and a source bundle; `[colony]` stays on
 the rolling `repo` release.
 
 **A smoke test gates publication.** The repository's trust chain is tested on
-the very database about to be published, and the image is booted in a KVM
-virtual machine to a working live system.
+the very databases about to be published, the image is booted in a KVM
+virtual machine to a working live system, and installed from there with no
+network through the installer's own pages; the installed system's first boot
+must run the firewall it got from the medium.
 
 ## Consequences
 

@@ -35,30 +35,33 @@ run, signed with a throwaway key.
 | Step | Script |
 |---|---|
 | Build only what is newer than what `[colony]` serves; refuse a downgrade | `tools/pending-packages.sh` |
-| The `[colony]` trust chain, on the very database about to be published | `COLONY_PREBUILT_DB=1 tools/test-repo.sh` |
+| The `[colony]` trust chain and the installer's offline repository, on the very databases about to be published | `COLONY_PREBUILT_DB=1 tools/test-repo.sh` |
 | The image boots under KVM to a working live system, checked on its serial console | `tools/vm-headless.py smoke ISO` |
-
-`tools/vm-headless.py smoke` runs locally too, on any image, with no window and no key.
+| An offline install from the image, through the installer's own pages, boots with the firewall running | `tools/vm-headless.py autoinstall`, then `check-firewall` (below) |
 
 ## Driving an image in a VM
 
 [`vm-headless.py`](vm-headless.py) boots an image in QEMU with no window and drives it
-through the QEMU monitor and the guest agent. It needs KVM.
+through the QEMU monitor and the guest agent. It needs KVM, and no key: `smoke` runs on
+any image.
 
-The offline install path, which has to put the firewall in from the medium:
+The offline install path, which has to put the firewall in from the medium, as the
+release workflow runs it:
 
 ```
-tools/vm-headless.py start install --offline    # then install, keyboard only
+tools/vm-headless.py start install --offline    # the newest image in iso/out, no network card
+tools/vm-headless.py autoinstall                # every installer page, erase the disk, install
 tools/vm-headless.py installed --offline        # first boot of the installed disk
 tools/vm-headless.py check-firewall             # fails unless the firewall runs
+tools/vm-headless.py stop
 ```
+
+`autoinstall` answers no to the live session's network question, steps through the
+installer with the keyboard and waits for the installer's log to report the result. The
+one thing it changes on the medium is the partition page's preselected choice, set to
+"Erase disk", the click a person makes there. A failure leaves the last screen and the
+installer's log in `~/.cache/arch-colony/`.
 
 `check-firewall` asserts that `colony-firewall-nft`, `colony-firewalld` and
 `colony-firewall-seed` are active and the eBPF object is installed, and prints
 `colonyctl status`. `exec CMD` runs any other command in the guest.
-
-## Prévu
-
-- **Tests en VM.** Démarrage d'un ISO en QEMU, installation sans interaction, assertions sur
-  l'état du système obtenu. Porte de sortie de release à partir de
-  [J2](../docs/feuille-de-route.md#j2--installable-sur-disque---fait-le-2026-08-21).

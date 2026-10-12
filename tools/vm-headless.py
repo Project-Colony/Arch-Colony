@@ -9,6 +9,7 @@
     tools/vm-headless.py type TEXT              letters, digits, space, dot, dash; capitals via shift
     tools/vm-headless.py exec CMD [ARG ...]     run a command in the guest, exit with its status
     tools/vm-headless.py check-firewall         fail unless the firewall is running in the guest
+    tools/vm-headless.py autoinstall            install on the VM `start` booted, then power it off
     tools/vm-headless.py smoke ISO              boot ISO on a serial console, check the live system, power off
 
 --offline boots with no network card at all, so an install has no network
@@ -39,11 +40,20 @@ What was learned driving Calamares this way (2026-09-05):
   - Compare screenshot regions to detect page changes; convert to RGB32 first
     (QImage.copy() leaves row padding uninitialised, so raw bytes hash randomly).
 
+`autoinstall` does the above unattended, which is how the release workflow
+installs: it reads the console for the network question, steps through the
+pages, watching the installer's step list move on, and waits for the
+installer's log to report the result. The partition page is the exception: a
+radio button the keyboard cannot reach reliably, so it preselects "Erase disk"
+in the live session's partition.conf before the installer starts.
+
 `exec` and `check-firewall` go through the QEMU guest agent, which both the
 live image and an installed system carry (qemu-guest-agent, started by udev when
 the virtio port below appears), so they read the guest without a screen.
 
 Needs qemu-desktop, edk2-ovmf and pyside6 (for the PPM -> PNG conversion).
+Only `shot` needs pyside6, and qemu-base with qemu-hw-display-virtio-vga is
+enough for the rest.
 
 `smoke` is the release workflow's boot test and needs neither a screen nor Qt.
 It boots the kernel, initramfs and command line of the image's own default
@@ -84,6 +94,10 @@ def fail(msg):
     sys.exit(1)
 
 
+class AgentError(Exception):
+    """The guest agent is not reachable, or not answering yet."""
+
+
 def monitor(cmd, wait=0.3):
     """Send one HMP command and return what the monitor printed."""
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -120,7 +134,7 @@ def guest(command, arguments=None, timeout=10):
     try:
         s.connect(str(QGA))
     except OSError:
-        fail(f"no VM listening on {QGA} - start one first")
+        raise AgentError(f"no VM listening on {QGA} - start one first") from None
     s.settimeout(timeout)
     f = s.makefile("rwb")
 
@@ -140,8 +154,8 @@ def guest(command, arguments=None, timeout=10):
             pass
         ask(command, arguments)
         reply = json.loads(f.readline())
-    except (socket.timeout, json.JSONDecodeError):
-        fail("the guest agent does not answer - is the guest still booting?")
+    except (OSError, json.JSONDecodeError):
+        raise AgentError("the guest agent does not answer - is the guest still booting?") from None
     finally:
         s.close()
     if "error" in reply:
@@ -162,6 +176,18 @@ def guest_exec(argv, timeout=120):
     return st.get("exitcode", 1), out, err
 
 
+def wait_for_agent(timeout):
+    """Wait until the guest agent answers, which is once the guest has booted."""
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            return guest("guest-ping", timeout=5)
+        except AgentError:
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(3)
+
+
 def exec_in_guest(argv):
     status, out, err = guest_exec(argv)
     sys.stdout.write(out)
@@ -170,6 +196,12 @@ def exec_in_guest(argv):
 
 
 def check_firewall():
+    wait_for_agent(600)
+    # Boot finished, so that "inactive" means the unit did not start, not that
+    # it has not started yet. Printed, not asserted: what it says about
+    # anything but the firewall is not this check's business.
+    _, state, _ = guest_exec(["/usr/bin/systemctl", "is-system-running", "--wait"], timeout=600)
+    print(f"{'system':32} {state.strip()}")
     _, states, _ = guest_exec(["/usr/bin/systemctl", "is-active", *FIREWALL_UNITS])
     states = states.split()
     for unit, state in zip(FIREWALL_UNITS, states):
@@ -261,10 +293,10 @@ def shot(name):
     print(f"{png}  {img.width()}x{img.height()}")
 
 
-def keys(names):
+def keys(names, pause=0.25):
     for k in names:
         monitor("sendkey " + k)
-        time.sleep(0.25)
+        time.sleep(pause)
 
 
 def type_text(text):
@@ -287,6 +319,144 @@ def type_text(text):
         time.sleep(0.08)
     time.sleep(0.3)
     s.close()
+
+
+# What autoinstall types on the Users page. A throwaway machine: the disk is
+# wiped by the next `start`, and nothing logs in with these.
+INSTALL_LOGIN = "colony"
+INSTALL_PASSWORD = "colony-smoke-test"
+# The left margin of the installer's step list, where only the highlight of
+# the current step is bright.
+SIDEBAR_X = 10
+
+
+def screendump(path):
+    """The screen as (width, height, RGB bytes), saved to path as a PPM."""
+    path.unlink(missing_ok=True)
+    monitor(f"screendump {path}", wait=0.5)
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        data = path.read_bytes() if path.is_file() else b""
+        head = re.match(rb"P6\s+(\d+)\s+(\d+)\s+255\s", data)
+        if head and len(data) >= head.end() + int(head[1]) * int(head[2]) * 3:
+            return int(head[1]), int(head[2]), data[head.end():]
+        time.sleep(0.2)
+    fail(f"screendump to {path} failed")
+
+
+def current_step(path):
+    """The height of the step the installer highlights, or None before it shows.
+
+    The highlight is a bright band some 40 rows tall. Anything shorter, such as
+    the console text the screen shows before the installer, is not it.
+    """
+    width, height, px = screendump(path)
+    bright = [sum(px[(y * width + SIDEBAR_X) * 3:(y * width + SIDEBAR_X) * 3 + 3]) > 384
+              for y in range(height)]
+    band, top = None, None
+    for y, lit in enumerate(bright + [False]):
+        if lit and top is None:
+            top = y
+        elif not lit and top is not None:
+            if y - top >= 20:
+                band = (top + y - 1) / 2
+            top = None
+    return band
+
+
+def wait_until(what, probe, timeout, interval=3):
+    """Poll probe() until it returns something truthy; fail after timeout."""
+    deadline = time.monotonic() + timeout
+    while not (found := probe()):
+        if time.monotonic() > deadline:
+            fail(f"timed out after {timeout} s waiting for {what}")
+        time.sleep(interval)
+    return found
+
+
+def autoinstall():
+    """Install on the VM `start` booted, through the installer's own pages."""
+    STATE.mkdir(parents=True, exist_ok=True)
+    screen = STATE / "autoinstall-screen.ppm"
+    log = STATE / "calamares-session.log"
+
+    def fetch_log():
+        _, out, _ = guest_exec(["/usr/bin/cat", "/root/.cache/calamares/session.log"])
+        log.write_text(out)
+
+    def failed(msg):
+        try:
+            screendump(screen)
+            fetch_log()
+        except AgentError:
+            pass
+        fail(f"{msg}; the screen is in {screen}, the installer log in {log}")
+
+    def advance(press, page, timeout=120, pause=0.25):
+        """Press keys until the highlight leaves the current step, once retried."""
+        before = current_step(screen)
+        if before is None:
+            failed(f"the installer shows no current step before {page}")
+        for _ in range(2):
+            keys(press, pause)
+            deadline = time.monotonic() + timeout / 2
+            while time.monotonic() < deadline:
+                now = current_step(screen)
+                if now is not None and now > before + 10:
+                    print(f"    {page}")
+                    return
+                time.sleep(2)
+        failed(f"the installer did not move on to {page}")
+
+    wait_for_agent(600)
+    # The question .zlogin asks before it starts the installer, read off the
+    # first console. A key sent before it is asked could be lost.
+    wait_until("the live session's network question",
+               lambda: "[o/N]" in guest_exec(["/usr/bin/cat", "/dev/vcs1"])[1], 300)
+    # The one change to the medium: "Erase disk" preselected, which is the
+    # click a person makes on that page. Without a mouse, the radio button
+    # cannot be reached reliably by keyboard; every page and every job is
+    # otherwise exactly what a person installs with.
+    conf = "/etc/calamares/modules/partition.conf"
+    guest_exec(["/usr/bin/sed", "-i", "s/^initialPartitioningChoice: .*/initialPartitioningChoice: erase/", conf])
+    if guest_exec(["/usr/bin/grep", "-qx", "initialPartitioningChoice: erase", conf])[0]:
+        fail(f"could not preselect the erase choice in {conf}")
+    print("==> the network stays off; starting the installer")
+    keys(["n"])
+    # cage falls back to software rendering after a failed first start, which
+    # takes a while on a VM without a GPU.
+    wait_until("the installer's first page", lambda: current_step(screen) is not None, 600)
+    print("==> through the installer's pages")
+    for page in ("Location", "Keyboard", "Partitions", "Software", "Users"):
+        advance(["alt-n"], page)
+    # Name, login and hostname follow from the name; one password for the
+    # user and, ticked last, for the administrator.
+    type_text(INSTALL_LOGIN)
+    keys(["tab", "tab", "tab"])
+    type_text(INSTALL_PASSWORD)
+    keys(["tab"])
+    type_text(INSTALL_PASSWORD)
+    keys(["tab", "spc"])
+    advance(["alt-n"], "Summary")
+    # Install, then Install Now once the confirmation is up.
+    advance(["alt-i", "alt-i"], "Install", pause=3)
+
+    print("==> installing")
+    pattern = re.compile(r"completion: (succeeded|failed)|Installation failed:.*")
+    found = wait_until("the installation to finish", lambda: pattern.search(
+        guest_exec(["/usr/bin/cat", "/root/.cache/calamares/session.log"])[1]), 2700, interval=10)
+    fetch_log()
+    if found.group(1) != "succeeded":
+        failed(f"the installation failed: {found.group(0)}")
+    print(f"    finished; the installer log is in {log}")
+
+    # The power button, so that the live system shuts down cleanly.
+    pid = int(PIDFILE.read_text())
+    monitor("system_powerdown")
+    try:
+        wait_until("the live system to power off", lambda: not Path(f"/proc/{pid}").exists(), 300, 2)
+    finally:
+        stop()
 
 
 # Run as root on the live image, in bash. Each line is one check; the first
@@ -459,6 +629,15 @@ def run_checks(console):
 
 
 def main(argv):
+    # Progress as it happens, in CI's log too, where stdout is a pipe.
+    sys.stdout.reconfigure(line_buffering=True)
+    try:
+        run(argv)
+    except AgentError as e:
+        fail(str(e))
+
+
+def run(argv):
     if len(argv) < 2:
         fail(__doc__.split("\n\n")[1])
     verb, rest = argv[1], argv[2:]
@@ -481,6 +660,8 @@ def main(argv):
         exec_in_guest(rest)
     elif verb == "check-firewall" and not rest:
         check_firewall()
+    elif verb == "autoinstall" and not rest:
+        autoinstall()
     elif verb == "smoke" and len(rest) == 1:
         smoke(rest[0])
     else:

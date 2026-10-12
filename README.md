@@ -111,6 +111,7 @@ that the `colony-keyring` package installs:
 | Its checksum file `<image>.sha256` | `<image>.sha256.sig` |
 | Every package in `[colony]` | `<package>.pkg.tar.zst.sig` |
 | The repository databases `colony.db` and `colony.files` | `colony.db.sig`, `colony.files.sig` |
+| The `colony-offline` database the image carries, from which the installer puts the firewall on every disk | `colony-offline.db.sig`, inside the image |
 
 | Key | Fingerprint |
 |---|---|
