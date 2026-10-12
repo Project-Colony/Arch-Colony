@@ -12,6 +12,10 @@
 # Requires the packages in repo/out (run repo/build.sh first) and the Colony key
 # in this machine's pacman keyring, since the profile verifies [colony] at its
 # strictest.
+#
+# Signs with COLONY_SIGNING_KEY: the local [colony] database, the installer's
+# offline firewall database (iso/offline-repo.sh, embedded in the image), and
+# the image with its checksum file.
 
 set -euo pipefail
 
@@ -103,6 +107,17 @@ if [[ -f "$STAGE/airootfs/etc/calamares/modules/netinstall.conf" ]]; then
 	mkdir -p "$STAGE/airootfs/usr/share/colony"
 	"$ROOT/tools/gen-netinstall.py" --archinstall "$INPUTS/archinstall" \
 		> "$STAGE/airootfs/usr/share/colony/netinstall.yaml"
+fi
+
+# The firewall the installer puts on the target, carried on the medium so that an
+# offline install gets it too. Files only: nothing installs it on the live
+# session, whose network would otherwise sit behind a fail-closed table. See the
+# pacman.conf in that directory for how the installer uses it.
+OFFLINE="$STAGE/airootfs/usr/share/colony/offline-repo"
+if [[ -f $OFFLINE/pacman.conf ]]; then
+	echo "==> assembling the installer's offline firewall repository"
+	"$ROOT/iso/offline-repo.sh" "$OFFLINE"
+	printf '    %s on the medium\n' "$(du -sh "$OFFLINE" | cut -f1)"
 fi
 
 echo "==> mkarchiso ($PROFILE)"

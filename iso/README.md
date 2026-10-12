@@ -36,3 +36,21 @@ image is built from.
 
 To move a pin, edit `pins.env` in a pull request. CI resolves the templates and
 generates the package tree from the new inputs before it merges.
+
+## The firewall on installed systems
+
+Every installed system gets Colony Firewall Control, online or offline. The installer's
+cleanup step installs `colony-firewall-defaults`, `colony-firewall-control` and
+`colony-firewall-control-ebpf` into the target from a small signed repository the
+medium carries at `/usr/share/colony/offline-repo`, before it enables networking, and
+stops the install if they do not install or their units are not enabled.
+
+`build.sh` assembles that repository with [`offline-repo.sh`](offline-repo.sh): it
+copies the three packages and the signatures `repo/build.sh` made from `repo/out`, then
+signs a `colony-offline` database over them with `COLONY_SIGNING_KEY`. The
+[`pacman.conf`](install/airootfs/usr/share/colony/offline-repo/pacman.conf) next to it
+requires a Colony signature on the database and on every package.
+
+The live session never installs from it. A live medium that enabled the firewall
+would hand the installer a fail-closed table and no network to finish with.
+

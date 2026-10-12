@@ -16,12 +16,29 @@ and on every push to `main`, in an `archlinux:base-devel` container.
 | shellcheck on every `*.sh`, `colonyctl` and the install scriptlets, `zsh -n` on the live session's `.zlogin`, `py_compile` on `tools/*.py` | the same commands |
 | [ADR-0002](../docs/decisions/0002-regle-de-non-recouvrement.md): nothing in `packages/` shadows `[core]`, `[extra]` or `[multilib]` | `tools/check-shadowing.sh` |
 | The `colony-mirrorlist` SigLevel migration | `tools/test-mirrorlist-migration.sh` |
-| The signed `[colony]` chain end to end, signed in CI with a throwaway key | `tools/test-repo.sh` |
+| The signed `[colony]` chain end to end, and the installer's offline firewall repository through its own `pacman.conf`, signed in CI with a throwaway key | `tools/test-repo.sh` |
 | The installer templates resolve in every palette of the pinned `themes.json`, and the package tree generates from the pinned archinstall | `iso/fetch-inputs.sh DIR`, then `tools/resolve-theme.py` and `tools/gen-netinstall.py` |
 | Each package the change touches builds with `makepkg -s`, passes `namcap` without errors, and its `.SRCINFO` equals `makepkg --printsrcinfo` | `makepkg --printsrcinfo > .SRCINFO` |
 
 `tools/test-repo.sh` trusts the key in `packages/colony-keyring/colony.gpg` unless
 `COLONY_PUBKEY` names another public key file.
+
+## Driving an image in a VM
+
+[`vm-headless.py`](vm-headless.py) boots an image in QEMU with no window and drives it
+through the QEMU monitor and the guest agent. It needs KVM, so CI does not run it.
+
+The offline install path, which has to put the firewall in from the medium:
+
+```
+tools/vm-headless.py start install --offline    # then install, keyboard only
+tools/vm-headless.py installed --offline        # first boot of the installed disk
+tools/vm-headless.py check-firewall             # fails unless the firewall runs
+```
+
+`check-firewall` asserts that `colony-firewall-nft`, `colony-firewalld` and
+`colony-firewall-seed` are active and the eBPF object is installed, and prints
+`colonyctl status`. `exec CMD` runs any other command in the guest.
 
 ## Prévu
 

@@ -38,8 +38,8 @@
 
 pkgbase=colony-firewall-control
 pkgname=('colony-firewall-control' 'colony-firewall-control-ebpf')
-pkgver=0.2.2
-pkgrel=2
+pkgver=0.8.0
+pkgrel=1
 arch=('x86_64')
 url='https://github.com/Project-Colony/Colony-Firewall-Control'
 license=('GPL-3.0-or-later')
@@ -70,13 +70,22 @@ makedepends=(
 	'bpf-linker'
 	# protoc, for the cfc-proto crate.
 	'protobuf'
+	# The runtime depends of package_colony-firewall-control(). makepkg -s
+	# installs only the global arrays, so a split PKGBUILD has to list what
+	# its packages need here too for check() to run against them; namcap
+	# reports a missing one as an error.
+	'gcc-libs'
+	'hicolor-icon-theme'
+	'libxkbcommon'
+	'nftables'
+	'wayland'
 )
 source=("$pkgbase-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 # The real digest of the tag above, not a placeholder. Upstream's own
 # pkg/PKGBUILD carries sha256sums=('SKIP') and its README says that must never
 # be published - a repository that signs its packages has no business skipping
 # the check on what went into them.
-sha256sums=('aa7ddcd519a89bb42662b0584b68ec3e3e86d1dbb289092b2a6633061813d7b7')
+sha256sums=('f35da98261ab05e9ed31958048627c496785d46f6b8292e603a0080e7f93554d')
 
 _srcname="Colony-Firewall-Control-$pkgver"
 
@@ -247,8 +256,13 @@ package_colony-firewall-control() {
 		"colony-firewall-control-ebpf=$pkgver-$pkgrel"
 	)
 	optdepends=(
+		'bubblewrap>=0.13.0: explicit headless application confinement'
+		'libbpf: mandatory interface filters for application confinement'
 		'libnotify: desktop notifications on new prompts'
 		'libx11: run the GUI in X11/XWayland sessions'
+		# Optional, as upstream has it. Without polkit those requests are
+		# refused with the reason, and `sudo cfc` still makes the change.
+		'polkit: administrator prompt when the app or tray pauses filtering or imports rules'
 	)
 	backup=('etc/colony-firewall/daemon.toml')
 	install="$pkgbase.install"
@@ -304,6 +318,13 @@ package_colony-firewall-control() {
 		"$pkgdir/etc/xdg/autostart/colony-firewall-tray.desktop"
 	install -Dm644 pkg/colony-firewall.svg \
 		"$pkgdir/usr/share/icons/hicolor/scalable/apps/colony-firewall.svg"
+
+	# Since 0.8.0 the daemon asks polkit before it lets the app or the tray
+	# pause, resume, import rules or store an Allow that names no program.
+	# Without the action file polkit knows none of those actions and every
+	# such request is refused.
+	install -Dm644 pkg/org.projectcolony.firewall.policy \
+		"$pkgdir/usr/share/polkit-1/actions/org.projectcolony.firewall.policy"
 
 	install -Dm644 README.md            "$pkgdir/usr/share/doc/$pkgname/README.md"
 	install -Dm644 docs/ARCHITECTURE.md "$pkgdir/usr/share/doc/$pkgname/ARCHITECTURE.md"
