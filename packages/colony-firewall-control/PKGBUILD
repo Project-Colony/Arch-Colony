@@ -70,6 +70,15 @@ makedepends=(
 	'bpf-linker'
 	# protoc, for the cfc-proto crate.
 	'protobuf'
+	# The runtime depends of package_colony-firewall-control(). makepkg -s
+	# installs only the global arrays, so a split PKGBUILD has to list what
+	# its packages need here too for check() to run against them; namcap
+	# reports a missing one as an error.
+	'gcc-libs'
+	'hicolor-icon-theme'
+	'libxkbcommon'
+	'nftables'
+	'wayland'
 )
 source=("$pkgbase-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 # The real digest of the tag above, not a placeholder. Upstream's own
