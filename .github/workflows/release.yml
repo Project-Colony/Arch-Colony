@@ -345,9 +345,10 @@ jobs:
           fi
           # Fails here, legibly, on an expired subkey or a wrong passphrase.
           echo probe > "$GNUPGHOME/probe"
-          gpg --batch --yes --local-user "$signer" --detach-sign "$GNUPGHOME/probe" &&
-            gpg --batch --verify "$GNUPGHOME/probe.sig" "$GNUPGHOME/probe" 2>/dev/null ||
+          if ! gpg --batch --yes --local-user "$signer" --detach-sign "$GNUPGHOME/probe" ||
+              ! gpg --batch --verify "$GNUPGHOME/probe.sig" "$GNUPGHOME/probe" 2>/dev/null; then
             fail "the key cannot sign: expired, revoked, or the passphrase is wrong"
+          fi
           sign() { gpg --batch --yes --no-armor --local-user "$signer" --detach-sign "$1"; }
           # Signs a database repo-add wrote, and copies it, with its signature,
           # to the short names pacman fetches: release assets cannot be links.
