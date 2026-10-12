@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Generate the Arch Colony package signing key.
 #
-# Run this ONCE, ever. See docs/decisions/0008-chaine-de-confiance.md.
+# Run this ONCE, ever, offline, on the machine that keeps the certification
+# key. Never in CI: the release workflow only ever receives the signing subkey.
+# See docs/decisions/0008-chaine-de-confiance.md and
+# docs/decisions/0010-signing-in-ci.md.
 # GnuPG will prompt for a passphrase - use a strong one and store it in a password
 # manager. There is no recovery if it is lost.
 

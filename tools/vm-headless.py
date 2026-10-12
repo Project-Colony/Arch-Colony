@@ -306,7 +306,9 @@ def smoke(iso):
             "-cdrom", str(iso), "-kernel", str(kernel), "-initrd", str(initrd),
             "-append", append,
             # Offline, as an install from the medium is by default.
-            "-nic", "none", "-vga", "virtio", "-display", "none",
+            # std VGA: built into qemu-system-x86, where virtio-vga is a
+            # separate package a headless runner does not install.
+            "-nic", "none", "-vga", "std", "-display", "none",
             "-monitor", "none", "-serial", "stdio",
         ], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         console = Serial(proc, sys.stdout)

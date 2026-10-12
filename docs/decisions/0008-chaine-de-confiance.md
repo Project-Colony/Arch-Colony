@@ -1,6 +1,8 @@
 # ADR-0008 - Chaîne de confiance et hébergement du dépôt
 
-**Statut** : acceptée - 2026-08-19
+**Statut** : acceptée - 2026-08-19. Publication part superseded by
+[ADR-0010](0010-signing-in-ci.md) on 2026-10-12: CI signs and publishes, with the signing
+subkey alone.
 
 ## Contexte
 
