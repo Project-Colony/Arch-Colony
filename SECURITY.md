@@ -74,8 +74,9 @@ flaw exploitable, or weakens a protection upstream provides, is in scope.
 
 ## The signing key
 
-Every package in `[colony]`, its database and every ISO image are signed with
-the OpenPGP key that `colony-keyring` installs:
+Every package in `[colony]`, its database, every ISO image and the
+`colony-offline` database the installer carries for the firewall are signed
+with the OpenPGP key that `colony-keyring` installs:
 
 ```
 5CD2 FCA1 3E69 1C65 A354  780D 80C1 18F7 74E6 C43F

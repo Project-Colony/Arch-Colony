@@ -10,6 +10,11 @@
 # and colony-keyring establishes trust from nothing. Then, through the same stanza, a
 # database served without its signature and a database signed by a key nobody
 # trusts are both refused. Only the first refusal depends on the stanza's SigLevel.
+#
+# Then the installer's offline repository: iso/offline-repo.sh assembles it as
+# iso/build.sh does, with colony-mirrorlist standing in for the firewall packages
+# CI does not build here, and the pacman.conf the installer uses must install from
+# it and refuse it once its database signature is gone.
 
 set -euo pipefail
 
@@ -157,8 +162,27 @@ gpg --homedir "$TEST/foreign" --export > "$TEST/foreign.gpg"
 $SUDO pacman-key --gpgdir "$TEST/gnupg" --add "$TEST/foreign.gpg"
 refused "a database signed by a foreign key" pacman.conf db-foreign
 
+echo "==> the installer's offline repository"
+"$ROOT/iso/offline-repo.sh" "$TEST/offline" colony-mirrorlist
+# The installer's own pacman.conf, verbatim except for where its Server points.
+server="Server = file://$TEST/offline"
+sed "s|^Server = file:///usr/share/colony/offline-repo$|$server|" \
+	"$ROOT/iso/install/airootfs/usr/share/colony/offline-repo/pacman.conf" > "$TEST/offline.conf"
+grep -qxF "$server" "$TEST/offline.conf" \
+	|| fail "the offline pacman.conf no longer serves /usr/share/colony/offline-repo"
+# Into the root the first case installed, with its database, as on a target
+# that already has packages: the stand-in is reinstalled over itself.
+pac offline.conf db -Sy --noconfirm
+pac offline.conf db -S --noconfirm --noscriptlet colony-mirrorlist
+
+echo "==> the offline database without its signature"
+rm -f "$TEST/offline/colony-offline.db.sig" "$TEST/offline/colony-offline.db.tar.zst.sig"
+refused "an unsigned offline database" offline.conf db-offline-unsigned
+
 echo
 echo "PASS - signed database verified, signed package verified, trust established"
 echo "       from colony-keyring alone; an unsigned database was refused by the"
 echo "       SigLevel of the shipped [colony] stanza, and one signed by a foreign"
 echo "       key was refused because colony-keyring does not vouch for that key."
+echo "       The installer's offline repository installed through its own"
+echo "       pacman.conf, and was refused once its database was unsigned."

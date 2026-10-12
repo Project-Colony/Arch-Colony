@@ -3,7 +3,7 @@
 # distribution's decision, so it lives in a distribution package that someone
 # installs on purpose, not in the upstream package that anyone might (ADR-0007).
 
-_units='colony-firewalld.service colony-firewall-seed.service colony-firewall-nft.service'
+_units='colony-firewall-nft.service colony-firewalld.service colony-firewall-seed.service'
 
 # Everyone who logs in at a seat, so the prompt window can reach the daemon.
 #
@@ -14,9 +14,11 @@ _units='colony-firewalld.service colony-firewall-seed.service colony-firewall-nf
 # they turn off.
 #
 # Bounded on purpose: uid >= 1000 and below the nobody range, and only accounts
-# with a login shell. It does widen who can change firewall rules on a
-# multi-user machine; on the single-seat desktop this distribution is for, the
-# alternative is a person who cannot answer their own prompts.
+# with a login shell. Since CFC 0.8.0 membership no longer lets a program change
+# the rules: only root and the installed app and tray may, and pause, resume and
+# rule import still ask for an administrator password. Any other program of a
+# member can read the firewall's state and log, which on the single-seat desktop
+# this distribution is for is the person's own.
 _join_group() {
 	local user uid shell
 	while IFS=: read -r user _ uid _ _ _ shell; do
@@ -37,25 +39,26 @@ post_install() {
 
 	cat <<'EOF'
 
-Colony Firewall Control will start at the next boot, in this order:
+Colony Firewall Control will start at the next boot, before the network:
 
+  colony-firewall-nft    the filtering table, fail-closed
   colony-firewalld       the daemon
   colony-firewall-seed   the twelve `system` rules - DNS, DHCP, NTP, pacman, ssh
-  colony-firewall-nft    the filtering table, last
 
-Each step waits on the one before it, so the fail-closed table can never be
-loaded without a daemon behind it or without rules in it.
+systemd-networkd and NetworkManager start after all three, so the machine is
+never on a network unfiltered, and it already has the rules it needs to get a
+lease and resolve names when it gets there.
 
 Anything outside those twelve rules - a browser, a chat client - is held until
-you answer a prompt. The tray and the window do that; `cfc prompts` does it from
-a terminal.
+you answer a prompt. The tray and the window do that; `sudo cfc prompts` does
+it from a terminal.
 
 Inbound filtering stays off. Turning it on can strand a machine you reach over
 the network: `systemctl enable --now colony-firewall-nft-inbound`, and read
 /usr/share/doc/colony-firewall-control/HARDENING.md first.
 
 To start it now instead of at the next boot:
-  systemctl start colony-firewalld colony-firewall-seed colony-firewall-nft
+  systemctl start colony-firewall-nft colony-firewalld colony-firewall-seed
 
 EOF
 }

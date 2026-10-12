@@ -13,11 +13,13 @@
 # in this machine's pacman keyring, since the profile verifies [colony] at its
 # strictest.
 #
-# With COLONY_SIGNING_KEY set, it signs a fresh [colony] database over repo/out
-# and then signs the image. Without it, repo/out must already hold a signed
-# colony.db, and the image is left unsigned: that is how the release workflow
-# runs it, since its build jobs never hold a key and a separate job signs the
-# image afterwards.
+# With COLONY_SIGNING_KEY set, it signs a fresh [colony] database over repo/out,
+# the installer's offline firewall database (iso/offline-repo.sh, embedded in
+# the image), and then the image with its checksum file. Without it, repo/out
+# must already hold a signed colony.db and, in repo/out/offline, the signed
+# offline repository, and the image is left unsigned: that is how the release
+# workflow runs it, since its build jobs never hold a key and separate jobs sign
+# the repositories before and the image after.
 
 set -euo pipefail
 
@@ -122,6 +124,28 @@ if [[ -f "$STAGE/airootfs/etc/calamares/modules/netinstall.conf" ]]; then
 	mkdir -p "$STAGE/airootfs/usr/share/colony"
 	"$ROOT/tools/gen-netinstall.py" --archinstall "$INPUTS/archinstall" \
 		> "$STAGE/airootfs/usr/share/colony/netinstall.yaml"
+fi
+
+# The firewall the installer puts on the target, carried on the medium so that an
+# offline install gets it too. Files only: nothing installs it on the live
+# session, whose network would otherwise sit behind a fail-closed table. See the
+# pacman.conf in that directory for how the installer uses it.
+OFFLINE="$STAGE/airootfs/usr/share/colony/offline-repo"
+if [[ -f $OFFLINE/pacman.conf ]]; then
+	if [[ -n $KEY ]]; then
+		echo "==> assembling the installer's offline firewall repository"
+		"$ROOT/iso/offline-repo.sh" "$OFFLINE"
+	else
+		echo "==> using the signed offline firewall repository in repo/out/offline"
+		db=$PKGS/offline/colony-offline.db
+		# The same test as for colony.db above: the installer would refuse it,
+		# but only on someone's machine, after partitioning.
+		$SUDO pacman-key --verify "$db.sig" "$db" &>/dev/null || {
+			echo "repo/out/offline holds no colony-offline.db signed by a trusted key" >&2
+			exit 1; }
+		cp "$PKGS"/offline/* "$OFFLINE/"
+	fi
+	printf '    %s on the medium\n' "$(du -sh "$OFFLINE" | cut -f1)"
 fi
 
 echo "==> mkarchiso ($PROFILE)"

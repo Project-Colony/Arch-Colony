@@ -51,7 +51,7 @@ ${B}$PROGRAM${R} - Arch Colony system control
 
   ${B}$PROGRAM update${R} [--aur]     update the system (pacman -Syu)
   ${B}$PROGRAM status${R}             what this machine is running, and what is protecting it
-  ${B}$PROGRAM firewall${R} <args…>   Colony Firewall Control (cfc)
+  ${B}$PROGRAM firewall${R} <args…>   Colony Firewall Control (cfc); changes need sudo
   ${B}$PROGRAM version${R}
   ${B}$PROGRAM help${R}
 
@@ -186,13 +186,27 @@ cmd_status() {
 	echo
 	echo "${B}firewall${R}"
 	if ! command -v cfc >/dev/null; then
-		field "Colony Firewall" "${DIM}not installed${R} - pacman -S colony-firewall-control"
+		# colony-firewall-defaults, not -control: the firewall package alone
+		# enables nothing.
+		field "Colony Firewall" "${DIM}not installed${R} - pacman -S colony-firewall-defaults"
 		return 0
 	fi
+	local daemon=0
 	if systemctl is-active --quiet colony-firewalld.service 2>/dev/null; then
+		daemon=1
 		field "daemon" "${OK}running${R}"
 	else
 		field "daemon" "${WARN}stopped${R}"
+	fi
+	# Since CFC 0.7.0 the table loads on its own, before the daemon, and stays
+	# when the daemon dies. Loaded with no daemon behind it, it refuses every new
+	# connection outside loopback without a prompt to say why.
+	if ! systemctl is-active --quiet colony-firewall-nft.service 2>/dev/null; then
+		field "filtering table" "${WARN}not loaded${R}"
+	elif (( daemon )); then
+		field "filtering table" "${OK}loaded${R}"
+	else
+		field "filtering table" "${BAD}loaded, no daemon${R} - new connections are refused"
 	fi
 	# The kernel object is the whole reason [colony] ships its own build of CFC:
 	# the AUR package deliberately omits it, and a daemon without it filters on
