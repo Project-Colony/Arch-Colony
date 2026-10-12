@@ -28,7 +28,10 @@
 # The signing key is the secret ARCH_COLONY_GPG_SIGNING_SUBKEY of the `release`
 # environment: the signing subkey alone, exported with
 # `gpg --export-secret-subkeys <subkey>!`, never the certification primary,
-# which stays offline. docs/decisions/0010-signing-in-ci.md has the reasoning.
+# which stays offline. If that export keeps a passphrase, it goes in
+# ARCH_COLONY_GPG_PASSPHRASE of the same environment. The environment should
+# only admit main and the v* tags. docs/decisions/0010-signing-in-ci.md has
+# the reasoning.
 # Until that secret exists, a release stops at sign-packages with nothing
 # signed and nothing published.
 #
@@ -164,16 +167,17 @@ jobs:
           # Not through a process substitution, whose failure bash ignores: a
           # refused downgrade has to fail the job.
           list=$(tools/pending-packages.sh "$RUNNER_TEMP/published.txt")
-          echo "To build: ${list:-nothing}"
-          mkdir -p "$RUNNER_TEMP/out" /build
-          printf '%s\n' $list > "$RUNNER_TEMP/out/pending.txt"
+          mapfile -t dirs < <(printf '%s' "$list")
+          echo "To build: ${dirs[*]:-nothing}"
+          mkdir -p out /build
+          printf '%s\n' "${dirs[@]}" > out/pending.txt
 
           # makepkg refuses to run as root, and --syncdeps installs through sudo.
           useradd -m builder
           echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
 
           declare -A pending=() built=() dir_of=()
-          for d in $list; do pending[$d]=1; done
+          for d in "${dirs[@]}"; do pending[$d]=1; done
           for srcinfo in packages/*/.SRCINFO; do
             for name in $(sed -n 's/^pkgname = //p' "$srcinfo"); do
               dir_of[$name]=$(basename "$(dirname "$srcinfo")")
@@ -200,18 +204,18 @@ jobs:
             (cd "/build/$dir" && runuser -u builder -- makepkg --syncdeps --noconfirm)
             echo "::endgroup::"
           }
-          for d in $list; do build "$d"; done
+          for d in "${dirs[@]}"; do build "$d"; done
 
           # Debug packages belong in a separate repository, not in the one every
           # user installs from.
           find /build -mindepth 2 -maxdepth 2 -name '*.pkg.tar.zst' ! -name '*-debug-*' \
-            -exec cp -t "$RUNNER_TEMP/out/" {} +
-          ls -l "$RUNNER_TEMP/out"
+            -exec cp -t out/ {} +
+          ls -l out
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: packages
-          path: ${{ runner.temp }}/out/
+          path: out/
           if-no-files-found: error
           retention-days: 1
 
@@ -246,7 +250,7 @@ jobs:
         run: |
           name=arch-colony-${TAG:-dry-run}-source
           dest=$RUNNER_TEMP/$name
-          mkdir -p "$dest/packages" "$RUNNER_TEMP/out"
+          mkdir -p "$dest/packages" out
 
           git archive --prefix=arch-colony/ -o "$dest/arch-colony.tar" HEAD
 
@@ -265,13 +269,13 @@ jobs:
             -o "$dest/archinstall.tar" HEAD
           cp "$RUNNER_TEMP/inputs/themes.json" "$dest/"
 
-          tar -C "$RUNNER_TEMP" -cf "$RUNNER_TEMP/out/$name.tar" "$name"
-          tar -tvf "$RUNNER_TEMP/out/$name.tar"
+          tar -C "$RUNNER_TEMP" -cf "out/$name.tar" "$name"
+          tar -tvf "out/$name.tar"
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: source
-          path: ${{ runner.temp }}/out/
+          path: out/
           if-no-files-found: error
           retention-days: 1
 
@@ -404,7 +408,8 @@ jobs:
           (( ${#file_of[@]} )) || fail "the database lists no package"
 
           mkdir offline
-          for name in $OFFLINE_PACKAGES; do
+          read -ra offline <<<"$OFFLINE_PACKAGES"
+          for name in "${offline[@]}"; do
             [[ -n ${file_of[$name]:-} ]] || fail "$name is not in [colony]"
             cp "${file_of[$name]}" "${file_of[$name]}.sig" offline/
           done
@@ -493,8 +498,7 @@ jobs:
           echo "$name: $size bytes, $(( size * 100 / limit ))% of the 1.9 GiB limit"
           (( size <= limit )) || { echo "::error::$name is over 1.9 GiB"; exit 1; }
 
-      # The image as built, unsigned, and the complete signed repository it
-      # was built from, for the smoke test.
+      # The image as built, unsigned, with its checksum and package list.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: iso
@@ -610,9 +614,11 @@ jobs:
 
       - name: The key the artefacts must verify against
         run: |
-          repo_key=packages/colony-keyring/colony.gpg iso_key=$repo_key
+          repo_key=packages/colony-keyring/colony.gpg
+          iso_key=$repo_key
           if [[ $DRY_RUN == true ]]; then
-            repo_key=repo/out/dry-run-key.gpg iso_key=iso/out/dry-run-key.gpg
+            repo_key=repo/out/dry-run-key.gpg
+            iso_key=iso/out/dry-run-key.gpg
           fi
           fpr() { gpg --show-keys --with-colons "$1" | awk -F: '$1 == "fpr" { print $10; exit }'; }
           {
@@ -747,8 +753,8 @@ jobs:
 
       - name: Add verification and source notes
         run: |
-          iso=$(cd dist && ls ./*.iso) iso=${iso#./}
-          src=$(cd dist && ls ./*-source.tar) src=${src#./}
+          isos=(dist/*.iso) srcs=(dist/*-source.tar)
+          iso=${isos[0]#dist/} src=${srcs[0]#dist/}
           gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json body --jq .body > notes.md
           # Idempotent: a re-run must not append it twice.
           if ! grep -qF '## Verify the image' notes.md; then
