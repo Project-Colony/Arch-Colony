@@ -9,43 +9,41 @@
 #
 # What "on" has to mean, and why it is three units rather than one:
 #
+#   colony-firewall-nft     the fail-closed table, first
 #   colony-firewalld        the daemon
 #   colony-firewall-seed    the `system` bundle - DNS, DHCP, NTP, pacman, ssh
-#   colony-firewall-nft     the fail-closed table, last
 #
-# Loading the table first gives a machine that refuses to resolve a name, renew
-# a lease or reach a mirror - indistinguishable from a broken network, and
-# unrecoverable without typing `nft delete table` from memory. That is not
-# hypothetical: it happened twice on 2026-08-21, on the first machine this was
-# ever installed on.
+# all three before network-pre.target, so systemd-networkd and NetworkManager
+# start on a machine that is filtered and already has the rules it needs to get
+# a lease and resolve names. A table with no rules in it refuses exactly those,
+# which looks like a broken network: it happened twice on 2026-08-21, on the
+# first machine this was ever installed on, and it is why the seed exists.
+#
+# The order of the first two is CFC's own since 0.7.0. This package only adds
+# the seed and the decision to turn all of it on.
 
 pkgname=colony-firewall-defaults
 pkgver=20260821
-pkgrel=2
+pkgrel=3
 pkgdesc='Arch Colony defaults for Colony Firewall Control: enabled, seeded, inbound off'
 arch=('any')
 url='https://github.com/Project-Colony/Arch-Colony'
 license=('GPL-3.0-or-later')
 depends=(
-	'colony-firewall-control'
+	# 0.8.0, not any version: colony-firewall-seed.service is ordered for the
+	# units CFC ships since 0.7.0, and 0.8.0 is the first one [colony] carries.
+	'colony-firewall-control>=0.8.0'
 	# nft, for the cleanup in pre_remove.
 	'nftables'
 )
 install="$pkgname.install"
 source=('colony-firewall-seed.service'
-        '10-wait-for-seed.conf'
         '80-colony-firewall.preset')
-sha256sums=('SKIP' 'SKIP' 'SKIP')
+sha256sums=('SKIP' 'SKIP')
 
 package() {
 	install -Dm644 colony-firewall-seed.service \
 		"$pkgdir/usr/lib/systemd/system/colony-firewall-seed.service"
-
-	# A drop-in on someone else's unit rather than a patched copy of it. The
-	# unit belongs to colony-firewall-control; when the table may load is Arch
-	# Colony's policy, and the two have to be able to move independently.
-	install -Dm644 10-wait-for-seed.conf \
-		"$pkgdir/usr/lib/systemd/system/colony-firewall-nft.service.d/10-wait-for-seed.conf"
 
 	install -Dm644 80-colony-firewall.preset \
 		"$pkgdir/usr/lib/systemd/system-preset/80-colony-firewall.preset"

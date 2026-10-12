@@ -6,8 +6,8 @@
 # network on first boot - the failure mode principe 5 and the J4 section of the
 # roadmap both warn about. Turning it on is a distribution policy decision, and
 # under ADR-0007 that belongs in a systemd preset shipped by a Colony
-# configuration package, seeded with `cfc rules bootstrap-defaults` and fitted
-# with the anti-lockout guard. That is J4 work, not this package's.
+# configuration package, seeded with `cfc rules bootstrap-defaults`. That is
+# colony-firewall-defaults, not this package.
 #
 # Arch convention agrees for a different reason: packages do not enable units.
 
@@ -19,15 +19,26 @@ Colony Firewall Control is installed but not running.
   Kernel layer:  /usr/lib/colony-firewall/cfc-ebpf.o
                  `cfc status` reports which enforcement level is actually live.
 
-  To start it:   systemctl enable --now colony-firewalld colony-firewall-nft
-                 cfc rules bootstrap-defaults   # DNS, NTP, DHCP, pacman, ssh
+  To start it:   systemctl enable --now colony-firewall-nft colony-firewalld
+                 sudo cfc rules bootstrap-defaults   # DNS, NTP, DHCP, pacman, ssh
 
-                 In that order. Every cfc subcommand opens the daemon socket
-                 first, so seeding rules before the daemon runs fails on a
-                 missing /run/colony-firewall/cfc.sock and seeds nothing -
-                 leaving the fail-closed chain loaded with no rules at all.
+                 In that order. The table loads first and is fail-closed, so
+                 until the rules exist DHCP, DNS and NTP are refused. Every cfc
+                 subcommand opens the daemon socket first, so seeding before
+                 the daemon runs fails on a missing /run/colony-firewall/cfc.sock
+                 and seeds nothing.
 
   To use the UI: usermod -aG colony-firewall <user>   # then log out and back in
+
+                 The group lets the app and the tray reach the daemon. Changes
+                 come from them, and pause, resume and rule import ask for an
+                 administrator password through polkit. Every other program
+                 of that user, cfc without sudo included, is read-only.
+
+  To turn it off: systemctl disable --now colony-firewall-nft colony-firewalld
+
+                 Not a plain stop: systemd-networkd and NetworkManager require
+                 the table, so stopping or restarting it stops or restarts them.
 
 The inbound chain (colony-firewall-nft-inbound.service) stays off. Enabling it
 on a machine you reach over the network can lock you out at the next reboot:
@@ -37,42 +48,66 @@ EOF
 }
 
 post_upgrade() {
-	# The daemon loads the eBPF object once, at startup. After an upgrade the
-	# new object is on disk while the old programs are still pinned in the
-	# kernel and still enforcing - which is correct, that is the property worth
-	# having, but it means the running daemon is older than the object beside it.
-	#
-	# Not restarted automatically. A restart is safe (the pins outlive it) but
-	# it drops in-flight prompts, and Arch packages do not restart services on
-	# the user's behalf.
+	# 0.7.0 made the table RequiredBy= systemd-networkd and NetworkManager, so a
+	# table that fails to load keeps the network down instead of up and
+	# unfiltered. Those links are made when the unit is enabled, so a machine
+	# that enabled it under an older unit file has none until it is enabled
+	# again. Only units that are enabled: re-enabling the daemon would follow its
+	# Also= and turn on a table someone switched off.
+	local unit
+	for unit in colony-firewall-nft.service colony-firewall-nft-inbound.service; do
+		if systemctl is-enabled --quiet "$unit" 2>/dev/null; then
+			systemctl reenable "$unit" 2>/dev/null ||
+				echo "could not re-enable $unit, run: systemctl reenable $unit" >&2
+		fi
+	done
+
+	# Nothing running is touched, and not only because Arch packages do not
+	# restart services. Upstream's scriptlet reloads the table here. Under a
+	# daemon older than 0.8.0 that is harmful: the new table sends new loopback
+	# flows to the queue, and only a 0.8.0 daemon lets unmatched local traffic
+	# through, so every DNS query to the resolved stub would wait on a prompt.
+	# Restarting the daemon from here is no better: colony-firewall-defaults may
+	# still be the previous one in this transaction, with a drop-in that orders
+	# the table after the daemon, the reverse of what this unit file now says.
+	if [ "$(vercmp "$2" 0.8.0)" -lt 0 ]; then
+		cat <<'EOF'
+
+0.8.0 changes who may change the firewall: root, and the installed app and
+tray. cfc without sudo is read-only, so use sudo cfc for changes. Pause,
+resume, rule import and an Allow rule that names no program ask for an
+administrator password through polkit.
+
+EOF
+	fi
 	if systemctl is-active --quiet colony-firewalld.service 2>/dev/null; then
 		cat <<'EOF'
 
-colony-firewalld is running an older build than the object now on disk.
-Load the new one when convenient:
+colony-firewalld and its table still run the previous version. Load this one
+when convenient, in this order:
 
-  systemctl restart colony-firewalld.service
+  systemctl restart colony-firewalld
+  systemctl reload colony-firewall-nft
 
-That restart is not free, so pick the moment. colony-firewall-nft.service is
-PartOf= the daemon, so systemd propagates the restart to it, and its ExecStop
-deletes 'table inet colony_firewall' before it is re-added. For that window
-there is no NFQUEUE chain: a new outbound flow that the pinned eBPF maps have
-no verdict for goes out unfiltered and unprompted.
+Reload, not restart: the reload replaces the table atomically, while a restart
+leaves a moment with no table and restarts systemd-networkd and NetworkManager
+with it. Rebooting does both too.
 
-What does survive is the pinned layer - anything the kernel already has a
-verdict for keeps being refused while the daemon is down.
+Then quit Colony Firewall and its tray and start them again. The daemon trusts
+only the binaries now installed, so until then they can read but not change
+anything.
 
 EOF
 	fi
 }
 
 pre_remove() {
-	# Both units, and both tables. Upstream's own scriptlet stops
-	# colony-firewall-nft and deletes `table inet colony_firewall`, but forgets
-	# the inbound pair - so removing the package on a machine where the inbound
-	# chain was enabled leaves an orphan filtering table with nothing left to
-	# manage it. On a host reached over the network that is the lockout the
-	# separate unit existed to prevent.
+	# Both units, and both tables. Upstream's scriptlet forgot the inbound pair
+	# until 0.8.0, and removing the package on a machine where the inbound chain
+	# was enabled then left an orphan filtering table with nothing left to manage
+	# it. On a host reached over the network that is the lockout the separate
+	# unit existed to prevent. disable comes before the stop, so the network
+	# managers' Requires= on the table is gone before the table is.
 	systemctl disable --now \
 		colony-firewall-nft-inbound.service \
 		colony-firewall-nft.service \

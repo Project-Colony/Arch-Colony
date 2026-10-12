@@ -1,6 +1,6 @@
 pkgbase = colony-firewall-control
-	pkgver = 0.2.2
-	pkgrel = 2
+	pkgver = 0.8.0
+	pkgrel = 1
 	url = https://github.com/Project-Colony/Colony-Firewall-Control
 	arch = x86_64
 	license = GPL-3.0-or-later
@@ -9,8 +9,8 @@ pkgbase = colony-firewall-control
 	makedepends = bpf-linker
 	makedepends = protobuf
 	options = !lto
-	source = colony-firewall-control-0.2.2.tar.gz::https://github.com/Project-Colony/Colony-Firewall-Control/archive/refs/tags/v0.2.2.tar.gz
-	sha256sums = aa7ddcd519a89bb42662b0584b68ec3e3e86d1dbb289092b2a6633061813d7b7
+	source = colony-firewall-control-0.8.0.tar.gz::https://github.com/Project-Colony/Colony-Firewall-Control/archive/refs/tags/v0.8.0.tar.gz
+	sha256sums = f35da98261ab05e9ed31958048627c496785d46f6b8292e603a0080e7f93554d
 
 pkgname = colony-firewall-control
 	pkgdesc = Per-application firewall for Colony: daemon, CLI and UI
@@ -21,9 +21,12 @@ pkgname = colony-firewall-control
 	depends = libxkbcommon
 	depends = wayland
 	depends = hicolor-icon-theme
-	depends = colony-firewall-control-ebpf=0.2.2-2
+	depends = colony-firewall-control-ebpf=0.8.0-1
+	optdepends = bubblewrap>=0.13.0: explicit headless application confinement
+	optdepends = libbpf: mandatory interface filters for application confinement
 	optdepends = libnotify: desktop notifications on new prompts
 	optdepends = libx11: run the GUI in X11/XWayland sessions
+	optdepends = polkit: administrator prompt when the app or tray pauses filtering or imports rules
 	backup = etc/colony-firewall/daemon.toml
 
 pkgname = colony-firewall-control-ebpf

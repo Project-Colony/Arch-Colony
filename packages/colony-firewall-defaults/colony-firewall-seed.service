@@ -1,28 +1,38 @@
-# Seeds Colony Firewall's `system` bundle before anything can be blocked.
+# Seeds Colony Firewall's `system` bundle before the network comes up.
 #
-# CFC starts with no rules, and its outbound chain is fail-closed: a machine
-# that loads the table before any rule exists refuses DNS, DHCP, NTP and pacman,
-# which looks exactly like a broken network. The `system` bundle is the twelve
-# rules that answer that - resolved, timesyncd, chrony, dhcpcd, NetworkManager
-# and networkd in v4 and v6, pacman, paru, and the ssh client.
+# CFC starts with no rules, and its outbound table is fail-closed: with no rule
+# in place the machine refuses DNS, DHCP, NTP and pacman, which looks exactly
+# like a broken network. The `system` bundle is the twelve rules that answer
+# that - resolved, timesyncd, chrony, dhcpcd, NetworkManager and networkd in v4
+# and v6, pacman, paru, and the ssh client.
 #
-# Ordered between the daemon and the table, so the three always happen in the
-# only order that is safe: daemon up, rules in, table loaded.
+# Since CFC 0.7.0 the table loads first, on its own, before the daemon and
+# before network-pre.target, and systemd-networkd and NetworkManager require it.
+# So the boot order is: table, daemon, these rules, then the network. Ordering
+# this unit Before=network-pre.target is what puts the rules in before any
+# interface is configured.
+#
+# There is no longer a drop-in holding the table until this unit has run. With
+# 0.7.0's units it would close an ordering cycle (table before daemon, daemon
+# before seed, seed before table), and it would also undo the property 0.7.0
+# exists for: a daemon or a seed that fails leaves the table loaded and the
+# machine filtered, not open. If this unit fails, every new connection outside
+# loopback waits on a prompt until it is fixed: `systemctl status
+# colony-firewall-seed` says why.
 #
 # `cfc rules bootstrap-defaults` is idempotent - bundle_add counts what is
 # already present and skips it - so this runs on every boot without a stamp file
-# and without a state directory to go stale.
+# and without a state directory to go stale. It runs as root, which CFC 0.8.0
+# still lets change the rules.
 
 [Unit]
 Description=Seed Colony Firewall's default rules
 Documentation=https://github.com/Project-Colony/Colony-Firewall-Control
-# Requires, not Wants: seeding that cannot reach the daemon has done nothing,
-# and the nft drop-in in this package makes the table wait on this unit. A
-# failure here therefore leaves the machine unfiltered rather than unreachable,
-# which is the right way round for something running before anyone can log in.
+# Requires, not Wants: seeding cannot do anything without the daemon socket.
 Requires=colony-firewalld.service
 After=colony-firewalld.service
-Before=colony-firewall-nft.service
+Before=network-pre.target
+Wants=network-pre.target
 
 [Service]
 Type=oneshot
