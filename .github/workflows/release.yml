@@ -20,8 +20,9 @@
 #                    plus the offline repository the image carries
 #   build-iso        builds the image from that signed repository
 #   sign-iso         signs the image and its checksum
-#   smoke            the repository's trust chain end to end, and the image
-#                    boots to a working live system
+#   smoke            the repository's trust chain end to end, the image boots
+#                    to a working live system, and an offline install from it
+#                    boots with the firewall running
 #   publish          verifies everything, uploads the image, updates [colony]
 #                    and publishes the release
 #
@@ -86,7 +87,8 @@ env:
   # Where installed machines fetch [colony] from: colony-mirrorlist's Server.
   REPO_URL: https://github.com/${{ github.repository }}/releases/download/repo
   # What the image carries as its own small signed repository, so that an
-  # offline install gets the firewall too.
+  # offline install gets the firewall too. The same three iso/offline-repo.sh
+  # takes by default: sign-packages runs nothing from the repository.
   OFFLINE_PACKAGES: colony-firewall-control colony-firewall-control-ebpf colony-firewall-defaults
   DRY_RUN: ${{ github.event_name == 'pull_request' }}
 
@@ -464,6 +466,13 @@ jobs:
             fpr=$(gpg --show-keys --with-colons repo/out/dry-run-key.gpg | awk -F: '$1 == "fpr" { print $10; exit }')
             pacman-key --add repo/out/dry-run-key.gpg
             pacman-key --lsign-key "$fpr"
+            # The installer populates the target's keyring from the image's
+            # keyrings before it installs the firewall from the medium, and
+            # that offline repository is signed with this key too. Only a dry
+            # run image carries it, and it is never published.
+            keyrings=iso/install/airootfs/usr/share/pacman/keyrings
+            install -Dm644 repo/out/dry-run-key.gpg "$keyrings/colony-dry-run.gpg"
+            echo "$fpr:4:" > "$keyrings/colony-dry-run-trusted"
           fi
 
       # No COLONY_SIGNING_KEY: iso/build.sh builds from the signed database
@@ -588,13 +597,14 @@ jobs:
     container:
       image: archlinux:base-devel
       options: --device /dev/kvm
-    timeout-minutes: 60
+    timeout-minutes: 120
     permissions:
       contents: read
     steps:
       - name: Install tools
         run: |
-          pacman -Syu --noconfirm --needed git python qemu-base edk2-ovmf libarchive
+          # virtio-vga: the installer's screen, as tools/run-iso.sh shows it.
+          pacman -Syu --noconfirm --needed git python qemu-base qemu-hw-display-virtio-vga edk2-ovmf libarchive
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -644,6 +654,28 @@ jobs:
 
       - name: The image boots to a working live system
         run: tools/vm-headless.py smoke iso/out/*.iso
+
+      # Offline, so that the firewall can only come from the image: the
+      # installer's own pages and jobs onto an empty disk, then the installed
+      # system's first boot.
+      - name: An offline install boots with the firewall running
+        run: |
+          tools/vm-headless.py start install --offline
+          tools/vm-headless.py autoinstall
+          tools/vm-headless.py installed --offline
+          tools/vm-headless.py check-firewall
+          tools/vm-headless.py stop
+
+      - name: Keep the installer's screen and log
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: install-diagnostics
+          path: |
+            ~/.cache/arch-colony/*.ppm
+            ~/.cache/arch-colony/*.log
+          if-no-files-found: ignore
+          retention-days: 7
 
   publish:
     name: Publish ${{ needs.release-please.outputs.tag_name || inputs.tag }}
