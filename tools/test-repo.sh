@@ -18,10 +18,15 @@ OUT="$ROOT/repo/out"
 KEYRING="$ROOT/packages/colony-keyring"
 STANZA="$ROOT/packages/colony-mirrorlist/colony-repo.conf"
 
+# The key the sandbox trusts, and the one that signs the database it builds.
 : "${COLONY_SIGNING_KEY:?not set - see repo/genkey.sh}"
 # The public key the sandbox is told to trust. CI holds no Colony key, so it
 # signs with a throwaway one and points this at its export.
 PUBKEY="${COLONY_PUBKEY:-$KEYRING/colony.gpg}"
+# COLONY_PREBUILT_DB=1 tests the signed database repo/out already holds instead
+# of building one, which needs no secret key: the release workflow uses it on
+# the database it is about to publish.
+PREBUILT="${COLONY_PREBUILT_DB:-}"
 
 # Already root, as in a container: no sudo needed, and none may be installed.
 SUDO=sudo
@@ -44,11 +49,22 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 echo "==> sandbox: $TEST"
 mkdir -p "$TEST"/{root,cache,repo,gnupg}
-cp "$OUT"/*.pkg.tar.zst "$OUT"/*.sig "$TEST/repo/"
+cp "$OUT"/*.pkg.tar.zst "$OUT"/*.pkg.tar.zst.sig "$TEST/repo/"
 
-echo "==> building the signed database"
-( cd "$TEST/repo" && repo-add --sign --key "$COLONY_SIGNING_KEY" --new --quiet \
-	colony.db.tar.zst ./*.pkg.tar.zst )
+if [[ -n $PREBUILT ]]; then
+	echo "==> the signed database from repo/out"
+	for f in colony.db.tar.zst colony.files.tar.zst; do
+		cp "$OUT/$f" "$OUT/$f.sig" "$TEST/repo/" || fail "repo/out has no signed $f"
+		# The names pacman fetches, as links the way repo-add leaves them: a
+		# case below replaces colony.db.tar.zst.sig and pacman must see that.
+		ln -s "$f" "$TEST/repo/${f%.tar.zst}"
+		ln -s "$f.sig" "$TEST/repo/${f%.tar.zst}.sig"
+	done
+else
+	echo "==> building the signed database"
+	( cd "$TEST/repo" && repo-add --sign --key "$COLONY_SIGNING_KEY" --new --quiet \
+		colony.db.tar.zst ./*.pkg.tar.zst )
+fi
 
 echo "==> isolated keyring, trusting nothing to start with"
 $SUDO pacman-key --gpgdir "$TEST/gnupg" --init
