@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 """Boot an Arch Colony image in QEMU with no window, and drive it blind.
 
-    tools/vm-headless.py start [install|base]   boot the newest ISO of that profile on a fresh disk
-    tools/vm-headless.py installed              boot the disk the last install wrote
+    tools/vm-headless.py start [install|base] [--offline]   boot the newest ISO of that profile on a fresh disk
+    tools/vm-headless.py installed [--offline]              boot the disk the last install wrote
     tools/vm-headless.py stop
     tools/vm-headless.py shot NAME              screenshot -> NAME.png (prints the size)
     tools/vm-headless.py key K [K ...]          QEMU key names: ret, tab, spc, alt-n, ctrl-alt-f2 ...
     tools/vm-headless.py type TEXT              letters, digits, space, dot, dash; capitals via shift
+    tools/vm-headless.py exec CMD [ARG ...]     run a command in the guest, exit with its status
+    tools/vm-headless.py check-firewall         fail unless the firewall is running in the guest
+
+--offline boots with no network card at all, so an install has no network
+whatever the answer to "Activer le réseau": the offline path, which has to
+install the firewall from the medium. After its first boot, `check-firewall`
+asserts what that path promises: the table, the daemon and the default rules
+active, the kernel object on disk, and `colonyctl status` saying so.
 
 Same machine as tools/run-iso.sh and the same disk (colony-target.qcow2 under
 ~/.cache/arch-colony), so a headless install can be opened in a window afterwards
@@ -30,9 +38,15 @@ What was learned driving Calamares this way (2026-09-05):
   - Compare screenshot regions to detect page changes; convert to RGB32 first
     (QImage.copy() leaves row padding uninitialised, so raw bytes hash randomly).
 
+`exec` and `check-firewall` go through the QEMU guest agent, which both the
+live image and an installed system carry (qemu-guest-agent, started by udev when
+the virtio port below appears), so they read the guest without a screen.
+
 Needs qemu-desktop, edk2-ovmf and pyside6 (for the PPM -> PNG conversion).
 """
 
+import base64
+import json
 import os
 import socket
 import subprocess
@@ -49,6 +63,9 @@ CODE = Path("/usr/share/edk2/x64/OVMF_CODE.4m.fd")
 PIDFILE = STATE / "colony-headless.pid"
 # UNIX socket paths are capped at 108 bytes; the runtime dir is short and per-user.
 SOCK = Path(os.environ.get("XDG_RUNTIME_DIR", "/tmp")) / "arch-colony-vm.sock"
+QGA = SOCK.with_name("arch-colony-qga.sock")
+FIREWALL_UNITS = ("colony-firewall-nft.service", "colony-firewalld.service",
+                  "colony-firewall-seed.service")
 
 
 def fail(msg):
@@ -86,7 +103,76 @@ def monitor(cmd, wait=0.3):
     return out.decode(errors="replace")
 
 
-def qemu(extra):
+def guest(command, arguments=None, timeout=10):
+    """One guest agent command; returns its "return" value."""
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        s.connect(str(QGA))
+    except OSError:
+        fail(f"no VM listening on {QGA} - start one first")
+    s.settimeout(timeout)
+    f = s.makefile("rwb")
+
+    def ask(execute, args):
+        msg = {"execute": execute}
+        if args is not None:
+            msg["arguments"] = args
+        f.write(json.dumps(msg).encode() + b"\n")
+        f.flush()
+
+    # guest-sync first: an earlier client may have left a reply in the channel,
+    # and only the one carrying our id says the next line is ours.
+    sync = int(time.time() * 1000) % 2**31
+    try:
+        ask("guest-sync", {"id": sync})
+        while json.loads(f.readline()).get("return") != sync:
+            pass
+        ask(command, arguments)
+        reply = json.loads(f.readline())
+    except (socket.timeout, json.JSONDecodeError):
+        fail("the guest agent does not answer - is the guest still booting?")
+    finally:
+        s.close()
+    if "error" in reply:
+        fail(f"{command}: {reply['error'].get('desc', reply['error'])}")
+    return reply["return"]
+
+
+def guest_exec(argv, timeout=120):
+    """Run argv in the guest; returns (status, stdout, stderr)."""
+    pid = guest("guest-exec", {"path": argv[0], "arg": argv[1:], "capture-output": True})["pid"]
+    deadline = time.monotonic() + timeout
+    while not (st := guest("guest-exec-status", {"pid": pid}))["exited"]:
+        if time.monotonic() > deadline:
+            fail(f"{argv[0]} still running after {timeout} s")
+        time.sleep(0.5)
+    out, err = (base64.b64decode(st.get(k, "")).decode(errors="replace")
+                for k in ("out-data", "err-data"))
+    return st.get("exitcode", 1), out, err
+
+
+def exec_in_guest(argv):
+    status, out, err = guest_exec(argv)
+    sys.stdout.write(out)
+    sys.stderr.write(err)
+    sys.exit(status)
+
+
+def check_firewall():
+    _, states, _ = guest_exec(["/usr/bin/systemctl", "is-active", *FIREWALL_UNITS])
+    states = states.split()
+    for unit, state in zip(FIREWALL_UNITS, states):
+        print(f"{unit:32} {state}")
+    obj, _, _ = guest_exec(["/usr/bin/test", "-f", "/usr/lib/colony-firewall/cfc-ebpf.o"])
+    print(f"{'kernel object':32} {'present' if obj == 0 else 'MISSING'}")
+    _, status, _ = guest_exec(["/usr/bin/colonyctl", "status"])
+    print(status)
+    if states != ["active"] * len(FIREWALL_UNITS) or obj != 0:
+        fail("the firewall is not running as installed")
+    print("PASS - the firewall runs on the installed system")
+
+
+def qemu(extra, offline=False):
     for tool in ("qemu-system-x86_64", "qemu-img"):
         if subprocess.run(["which", tool], capture_output=True).returncode:
             fail(f"{tool} missing: pacman -S qemu-desktop")
@@ -94,16 +180,20 @@ def qemu(extra):
         fail("OVMF missing: pacman -S edk2-ovmf")
     STATE.mkdir(parents=True, exist_ok=True)
     SOCK.unlink(missing_ok=True)
+    QGA.unlink(missing_ok=True)
     PIDFILE.unlink(missing_ok=True)
     args = [
         "qemu-system-x86_64", "-enable-kvm", "-cpu", "host", "-m", "4G", "-smp", "4",
         "-drive", f"file={DISK},format=qcow2,if=virtio",
-        "-nic", "user,model=virtio-net-pci",
+        *(["-nic", "none"] if offline else ["-nic", "user,model=virtio-net-pci"]),
         "-device", "usb-ehci", "-device", "usb-tablet",
         "-vga", "virtio", "-display", "none",
         "-drive", f"if=pflash,format=raw,readonly=on,file={CODE}",
         "-drive", f"if=pflash,format=raw,file={VARS}",
         "-monitor", f"unix:{SOCK},server,nowait",
+        "-chardev", f"socket,id=qga0,path={QGA},server=on,wait=off",
+        "-device", "virtio-serial",
+        "-device", "virtserialport,chardev=qga0,name=org.qemu.guest_agent.0",
         "-daemonize", "-pidfile", str(PIDFILE),
         *extra,
     ]
@@ -111,7 +201,7 @@ def qemu(extra):
     print(f"started, pid {PIDFILE.read_text().strip()}; monitor at {SOCK}")
 
 
-def start(profile):
+def start(profile, offline):
     pattern = {"base": "archcolony-base-*.iso", "install": "archcolony-2*.iso"}.get(
         profile, f"archcolony-{profile}-*.iso")
     isos = sorted((ROOT / "iso/out").glob(pattern), key=lambda p: p.stat().st_mtime)
@@ -123,17 +213,17 @@ def start(profile):
     subprocess.run(["qemu-img", "create", "-f", "qcow2", str(DISK), DISK_SIZE],
                    check=True, stdout=subprocess.DEVNULL)
     subprocess.run(["cp", "-f", "/usr/share/edk2/x64/OVMF_VARS.4m.fd", str(VARS)], check=True)
-    print(f"fresh disk {DISK} ({DISK_SIZE}); booting {iso.name}")
-    qemu(["-cdrom", str(iso), "-boot", "d"])
+    print(f"fresh disk {DISK} ({DISK_SIZE}); booting {iso.name}" + (", offline" if offline else ""))
+    qemu(["-cdrom", str(iso), "-boot", "d"], offline)
 
 
-def installed():
+def installed(offline):
     if not DISK.is_file():
         fail(f"no disk at {DISK} - nothing was installed yet")
     if not VARS.is_file():
         subprocess.run(["cp", "-f", "/usr/share/edk2/x64/OVMF_VARS.4m.fd", str(VARS)], check=True)
-    print(f"booting {DISK}")
-    qemu(["-boot", "c"])
+    print(f"booting {DISK}" + (", offline" if offline else ""))
+    qemu(["-boot", "c"], offline)
 
 
 def stop():
@@ -145,6 +235,7 @@ def stop():
     else:
         print("no headless VM running")
     SOCK.unlink(missing_ok=True)
+    QGA.unlink(missing_ok=True)
 
 
 def shot(name):
@@ -191,10 +282,13 @@ def main(argv):
     if len(argv) < 2:
         fail(__doc__.split("\n\n")[1])
     verb, rest = argv[1], argv[2:]
-    if verb == "start":
-        start(rest[0] if rest else "install")
-    elif verb == "installed":
-        installed()
+    if verb in ("start", "installed"):
+        offline = "--offline" in rest
+        rest = [a for a in rest if a != "--offline"]
+    if verb == "start" and len(rest) <= 1:
+        start(rest[0] if rest else "install", offline)
+    elif verb == "installed" and not rest:
+        installed(offline)
     elif verb == "stop":
         stop()
     elif verb == "shot" and len(rest) == 1:
@@ -203,6 +297,10 @@ def main(argv):
         keys(rest)
     elif verb == "type" and len(rest) == 1:
         type_text(rest[0])
+    elif verb == "exec" and rest:
+        exec_in_guest(rest)
+    elif verb == "check-firewall" and not rest:
+        check_firewall()
     else:
         fail(__doc__.split("\n\n")[1])
 

@@ -137,9 +137,9 @@ OVERRIDES = {
 # colonyctl are already on the machine through the filesystem copy. Offering a
 # package that is installed, or one that is about to be removed, teaches people
 # not to trust the page.
-# Colony Firewall Control is deliberately NOT here any more. It is installed
-# into the target by packages.conf's try_install of colony-firewall-defaults,
-# so offering it as a tick box would offer something already on its way - and a
+# Colony Firewall Control is deliberately NOT here any more. Every install gets
+# it, from the signed repository on the medium (shellprocess_cleanup.conf), so
+# offering it as a tick box would offer something already on its way - and a
 # page that offers what you are getting anyway teaches people not to read it.
 COLONY = [
     ("paru",
