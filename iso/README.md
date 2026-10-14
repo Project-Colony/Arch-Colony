@@ -35,7 +35,36 @@ fetches them, for the build and for CI alike, so CI checks exactly the inputs th
 image is built from.
 
 To move a pin, edit `pins.env` in a pull request. CI resolves the templates and
-generates the package tree from the new inputs before it merges.
+generates the package trees from the new inputs before it merges. `pins.env` also lists
+the nerd-fonts and OpenDyslexic releases `colony-fonts` is built from, and CI checks that
+its PKGBUILD agrees.
+
+## Language, font and text size
+
+The boot menu offers the install medium in English (the default) and in French, each
+also with speech, and with large text and OpenDyslexic. An entry is a set of kernel
+parameters, which the boot menu can edit (press `e`):
+
+| Parameter | Effect |
+|---|---|
+| `colony.lang=en\|fr` | Language of the live console, the message of the day, Calamares, its package page and its slideshow, and of the screen reader's voice |
+| `colony.font=dyslexic` | OpenDyslexic instead of JetBrainsMono Nerd Font, in the whole installer |
+| `colony.textscale=N` | The installer's text scale: 0.85, 1, 1.2 or 1.4, or any value from 0.7225 to 1.68 |
+| `vconsole.keymap=fr`, `vconsole.font=ter-v22b` | systemd's own: the console keymap, and a larger console font |
+
+[`colony-live-setup`](install/airootfs/usr/local/bin/colony-live-setup) applies the
+`colony.*` ones at boot, to the live session only: the installed system takes the
+language and keyboard chosen on the installer's pages. The font is chosen through the
+one fontconfig file the installer reads, in
+[`/usr/share/colony/fontconfig`](install/airootfs/usr/share/colony/fontconfig), and the
+text scale reaches Qt as `QT_SCALE_FACTOR`. The text itself lives in en/fr tables:
+[`config/netinstall.yaml`](../config/netinstall.yaml) for the package page, the
+[live session's](install/airootfs/usr/share/colony/strings) and
+[colonyctl's](../packages/colonyctl/en.sh) `en.sh`/`fr.sh`, and the slideshow's `en`/`fr`
+objects. `tools/check-i18n.py` fails CI when a key is missing from one language.
+
+To see the installer's theme at a text scale, in either font, without building an
+image: `tools/preview-calamares-theme.py --scale 1.68 --font dyslexic`.
 
 ## The firewall on installed systems
 

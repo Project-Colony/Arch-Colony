@@ -1,5 +1,5 @@
 [Unit]
-Description=Apply the boot entry's language to the live session
+Description=Apply the boot entry's language, font and text size to the live session
 # Before any login, so that the console, the message of the day and the
 # installer all start in it, and before the screen reader starts speaking.
 Before=systemd-user-sessions.service livecd-talk.service espeakup.service

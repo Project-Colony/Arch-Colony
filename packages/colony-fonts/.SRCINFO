@@ -1,0 +1,18 @@
+pkgbase = colony-fonts
+	pkgdesc = Colony design system fonts: JetBrainsMono Nerd Font (Regular, Medium, Bold) and OpenDyslexic
+	pkgver = 3.5.1
+	pkgrel = 1
+	url = https://github.com/Project-Colony/Arch-Colony
+	arch = any
+	license = OFL-1.1-no-RFN
+	license = OFL-1.1-RFN
+	noextract = JetBrainsMono-3.5.1.tar.xz
+	noextract = opendyslexic-0.910.12-rc2-2019.10.17.zip
+	source = JetBrainsMono-3.5.1.tar.xz::https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/JetBrainsMono.tar.xz
+	source = opendyslexic-0.910.12-rc2-2019.10.17.zip::https://github.com/antijingoist/opendyslexic/releases/download/v0.91.12/opendyslexic-0.910.12-rc2-2019.10.17.zip
+	source = OpenDyslexic-OFL-0.91.12.txt::https://raw.githubusercontent.com/antijingoist/opendyslexic/v0.91.12/OFL.txt
+	sha256sums = 04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf
+	sha256sums = b92d7fcb9409f2bcfd23b65ac71647256eb49c429f4fbb1cc870381fc93eb486
+	sha256sums = caafcccfb70fc72458fcbda812ec8f0a06cb300cbabb87eabbb30b946124394b
+
+pkgname = colony-fonts

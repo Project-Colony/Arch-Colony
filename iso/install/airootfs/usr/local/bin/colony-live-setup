@@ -1,15 +1,26 @@
 #!/usr/bin/env bash
-# Apply the boot entry's language to the live session, before anyone logs in.
-# Runs once per boot, from colony-live-setup.service.
+# Apply the boot entry's language, font and text size to the live session,
+# before anyone logs in. Runs once per boot, from colony-live-setup.service.
 #
-# The boot entries set it on the kernel command line, and it can be edited at
-# the boot menu (press e):
+# The boot entries set them on the kernel command line, and they can be edited
+# at the boot menu (press e):
 #
-#   colony.lang=en|fr   the language of the live console, the installer and its
-#                       package page. English when absent or unknown.
+#   colony.lang=en|fr     the language of the live console, the installer and its
+#                         package page. English when absent or unknown.
+#   colony.font=dyslexic  OpenDyslexic instead of JetBrainsMono Nerd Font, for the
+#                         whole installer at once: it selects the one fontconfig
+#                         file the installer reads (/usr/share/colony/fontconfig).
+#   colony.textscale=N    the installer's text scale, colony-ui's font_scale: 0.85,
+#                         1, 1.2 or 1.4 in the design system's steps, any value
+#                         from 0.7225 to 1.68 accepted. Qt applies it to every
+#                         widget, the painted step list and the slideshow alike,
+#                         as QT_SCALE_FACTOR: Calamares sizes its own text from
+#                         the application font, which no stylesheet can scale.
 #
-# The console keymap comes from systemd's own vconsole.keymap=, which the French
-# entries set too: systemd applies it without any help from here.
+# The console keymap and font come from systemd's own vconsole.keymap= and
+# vconsole.font=, which the same entries set: systemd applies them without any
+# help from here. The console cannot draw OpenDyslexic, a bitmap font is all it
+# has, so the large-text entries give it a larger Terminus instead.
 #
 # Everything is written to the running session only. The installer copies the
 # squashfs, not this session, so none of it reaches the installed machine; the
@@ -22,13 +33,26 @@ set -euo pipefail
 root=${COLONY_ROOT:-}
 read -ra params < "${COLONY_CMDLINE:-/proc/cmdline}"
 
-lang=en
+lang=en font=app scale=1
 for param in "${params[@]}"; do
 	case $param in
 		colony.lang=fr) lang=fr ;;
 		colony.lang=*) lang=en ;;
+		colony.font=dyslexic) font=dyslexic ;;
+		colony.font=*) font=app ;;
+		colony.textscale=*) scale=${param#*=} ;;
 	esac
 done
+
+# A number within the design system's range, or 1. awk, because bash has no
+# floating point; print turns 1.0 into 1, which is what "no scale" compares to.
+scale=$(awk -v s="$scale" 'BEGIN {
+	if (s !~ /^[0-9]*\.?[0-9]+$/) s = 1
+	s += 0
+	if (s < 0.7225) s = 0.7225
+	if (s > 1.68) s = 1.68
+	print s
+}')
 
 # shellcheck source=iso/install/airootfs/usr/share/colony/strings/en.sh
 . "$root/usr/share/colony/strings/en.sh"
@@ -48,10 +72,16 @@ esac > "$root/etc/locale.conf"
 
 printf '%s\n' "$motd" > "$root/etc/motd"
 
+# The installer's session (cage, then Calamares) gets these through pam_env,
+# from the login on tty1 that starts it, and so does a relaunch from another
+# console.
+printf 'FONTCONFIG_FILE=/usr/share/colony/fontconfig/%s.conf\n' "$font" >> "$root/etc/environment"
+if [[ $scale != 1 ]]; then
+	printf 'QT_SCALE_FACTOR=%s\n' "$scale" >> "$root/etc/environment"
+fi
+
 if [[ $lang == fr ]]; then
-	# The installer runs in cage, whose keyboard is libxkbcommon's default
-	# layout rather than the console's keymap. pam_env hands this to the login
-	# on tty1 that starts it.
+	# cage's keyboard is libxkbcommon's default layout, not the console's keymap.
 	printf 'XKB_DEFAULT_LAYOUT=fr\n' >> "$root/etc/environment"
 	# The screen reader speaks the language it reads. espeakup.service takes
 	# its voice from this file, through a drop-in in this image.

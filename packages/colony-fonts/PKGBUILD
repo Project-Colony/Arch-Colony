@@ -1,0 +1,53 @@
+# Maintainer: MotherSphere <linhajahad@gmail.com>
+#
+# The fonts of the Colony design system (Project-Colony-Resources,
+# design/typography.md), for the installer and what comes after it:
+# JetBrainsMono Nerd Font in the three weights the design system uses, and
+# OpenDyslexic, the whole-interface replacement a reader can pick at boot.
+#
+# Only these. Arch's ttf-jetbrains-mono-nerd installs every width, weight and
+# italic of the family, 232 MiB, for three files; this takes those three out of
+# the same nerd-fonts release tarball. OpenDyslexic has no Arch package of its
+# own (otf-opendyslexic-nerd is a patched copy under another family name), so it
+# comes from its upstream release. Both pins are repeated in iso/pins.env, which
+# CI checks against this file and the upstream poller watches.
+#
+# Font Awesome 6 Free, the design system's third font, is not here: nothing on
+# the install medium draws an icon glyph, and [extra] carries Font Awesome 7,
+# not 6.
+#
+# Installed under a directory of their own, so they never collide with the files
+# of Arch's packages for the same families.
+
+pkgname=colony-fonts
+pkgver=3.5.1
+# OpenDyslexic has its own version, below. Moving it bumps pkgrel.
+pkgrel=1
+pkgdesc='Colony design system fonts: JetBrainsMono Nerd Font (Regular, Medium, Bold) and OpenDyslexic'
+arch=('any')
+url='https://github.com/Project-Colony/Arch-Colony'
+license=('OFL-1.1-no-RFN' 'OFL-1.1-RFN')
+_opendyslexic=0.91.12
+_opendyslexic_zip=opendyslexic-0.910.12-rc2-2019.10.17.zip
+source=("JetBrainsMono-$pkgver.tar.xz::https://github.com/ryanoasis/nerd-fonts/releases/download/v$pkgver/JetBrainsMono.tar.xz"
+        "$_opendyslexic_zip::https://github.com/antijingoist/opendyslexic/releases/download/v$_opendyslexic/$_opendyslexic_zip"
+        "OpenDyslexic-OFL-$_opendyslexic.txt::https://raw.githubusercontent.com/antijingoist/opendyslexic/v$_opendyslexic/OFL.txt")
+# Unpacked by hand: the tarball holds the whole family, some 250 MB of it.
+noextract=("JetBrainsMono-$pkgver.tar.xz" "$_opendyslexic_zip")
+sha256sums=('04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf'
+            'b92d7fcb9409f2bcfd23b65ac71647256eb49c429f4fbb1cc870381fc93eb486'
+            'caafcccfb70fc72458fcbda812ec8f0a06cb300cbabb87eabbb30b946124394b')
+
+prepare() {
+	bsdtar -xf "JetBrainsMono-$pkgver.tar.xz" OFL.txt \
+		JetBrainsMonoNerdFont-Regular.ttf JetBrainsMonoNerdFont-Medium.ttf JetBrainsMonoNerdFont-Bold.ttf
+	bsdtar -xf "$_opendyslexic_zip" OpenDyslexic-Regular.otf OpenDyslexic-Bold.otf
+}
+
+package() {
+	install -Dm644 -t "$pkgdir/usr/share/fonts/colony" \
+		JetBrainsMonoNerdFont-Regular.ttf JetBrainsMonoNerdFont-Medium.ttf JetBrainsMonoNerdFont-Bold.ttf \
+		OpenDyslexic-Regular.otf OpenDyslexic-Bold.otf
+	install -Dm644 OFL.txt "$pkgdir/usr/share/licenses/$pkgname/JetBrainsMono-OFL.txt"
+	install -Dm644 "OpenDyslexic-OFL-$_opendyslexic.txt" "$pkgdir/usr/share/licenses/$pkgname/OpenDyslexic-OFL.txt"
+}

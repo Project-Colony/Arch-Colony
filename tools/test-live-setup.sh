@@ -44,7 +44,8 @@ cmdline=$archiso
 boot "$cmdline"
 expect etc/locale.conf 'LANG=en_US.UTF-8'
 expect etc/motd 'Arch Colony - installation medium'
-refuse etc/environment 'XKB_DEFAULT_LAYOUT'
+expect etc/environment 'FONTCONFIG_FILE=/usr/share/colony/fontconfig/app.conf'
+refuse etc/environment 'XKB_DEFAULT_LAYOUT|QT_SCALE_FACTOR'
 [[ ! -e $R/run/colony/espeakup.env ]] || { echo "FAIL [$cmdline] an English boot sets a voice" >&2; failed=1; }
 
 cmdline="$archiso colony.lang=fr vconsole.keymap=fr accessibility=on"
@@ -54,9 +55,27 @@ expect etc/motd "Arch Colony - support d'installation"
 expect etc/environment 'XKB_DEFAULT_LAYOUT=fr'
 expect run/colony/espeakup.env 'default_voice=fr'
 
-cmdline="$archiso colony.lang=de"
+cmdline="$archiso colony.lang=de colony.font=comic"
 boot "$cmdline"
 expect etc/locale.conf 'LANG=en_US.UTF-8'
+expect etc/environment 'FONTCONFIG_FILE=/usr/share/colony/fontconfig/app.conf'
+
+cmdline="$archiso colony.lang=fr colony.textscale=1.4 colony.font=dyslexic vconsole.font=ter-v22b"
+boot "$cmdline"
+expect etc/environment 'FONTCONFIG_FILE=/usr/share/colony/fontconfig/dyslexic.conf'
+expect etc/environment 'QT_SCALE_FACTOR=1.4'
+
+# The design system's range, 0.7225 to 1.68, and nothing that is not a number.
+for pair in 1.0: 1.00: 0.85:0.85 .85:0.85 1.2:1.2 0.5:0.7225 9:1.68 1.68:1.68 \
+	abc: -1: 1e3: '':; do
+	cmdline="$archiso colony.textscale=${pair%%:*}"
+	boot "$cmdline"
+	if [[ -n ${pair#*:} ]]; then
+		expect etc/environment "QT_SCALE_FACTOR=${pair#*:}"
+	else
+		refuse etc/environment 'QT_SCALE_FACTOR'
+	fi
+done
 
 (( ! failed )) && echo "colony-live-setup: $n boots checked"
 exit "$failed"

@@ -145,11 +145,15 @@ jobs:
             python -c 'import sys, yaml; assert yaml.safe_load(open(sys.argv[1]))' "$f"
           done
 
-      - name: colony-release reads the palette the installer is pinned to
+      - name: Packages build from the inputs iso/pins.env pins
         run: |
           . iso/pins.env
           grep -qx "_resources=$RESOURCES_COMMIT" packages/colony-release/PKGBUILD
           grep -q "'$THEMES_SHA256'" packages/colony-release/PKGBUILD
+          grep -qx "pkgver=$NERD_FONTS_VERSION" packages/colony-fonts/PKGBUILD
+          grep -q "'$NERD_FONTS_JETBRAINSMONO_SHA256'" packages/colony-fonts/PKGBUILD
+          grep -qx "_opendyslexic=$OPENDYSLEXIC_VERSION" packages/colony-fonts/PKGBUILD
+          grep -q "'$OPENDYSLEXIC_SHA256'" packages/colony-fonts/PKGBUILD
 
   packages:
     name: Build changed packages
