@@ -71,7 +71,7 @@ REPO_URL=${PKGS// /%20}
 sed -i "s|@COLONY_REPO@|$REPO_URL|g" "$STAGE/pacman.conf"
 
 # Colours come from the token system, never from a file in this repository
-# (principe 4). Any *.in under the staged profile is filled in here from
+# (principe 4). The staged profile's templates are filled in here from
 # Project-Colony-Resources' generated artifact - the same artifact every other
 # Colony program consumes, rather than a second copy of the palette, fetched at
 # the commit iso/pins.env names. A template names palette fields directly
@@ -79,13 +79,14 @@ sed -i "s|@COLONY_REPO@|$REPO_URL|g" "$STAGE/pacman.conf"
 # than shipping unstyled; see tools/resolve-theme.py. COLONY_THEME=family/variant
 # picks another palette.
 #
-# Only under etc/calamares. The profile carries archiso's own
+# Only the installer's branding under etc/calamares and the boot menu under
+# syslinux. The profile carries archiso's own
 # usr/local/share/livecd-sound/asound.conf.in, which the livecd-sound script
 # fills in itself at boot; an earlier `**/*.in` here renamed it away, and the
 # live medium has had no ALSA configuration since - quietly, since the script
 # tolerates the missing file.
 shopt -s nullglob globstar
-templates=("$STAGE"/airootfs/etc/calamares/**/*.in)
+templates=("$STAGE"/airootfs/etc/calamares/**/*.in "$STAGE"/syslinux/*.in)
 shopt -u nullglob globstar
 if (( ${#templates[@]} )); then
 	echo "==> resolving theme tokens"
@@ -96,7 +97,8 @@ fi
 # The installer's package tree is generated, not committed: it carries every
 # package in core and extra, which is a fact about the repositories on the
 # day the ISO is built rather than something to keep in git. Desktop and driver
-# definitions are derived from archinstall (GPL-3.0-or-later, same as us).
+# definitions are derived from archinstall, which is GPL-3.0-only: see the
+# licence note in tools/gen-netinstall.py.
 if [[ -f "$STAGE/airootfs/etc/calamares/modules/netinstall.conf" ]]; then
 	echo "==> generating the installer package tree"
 	# Written to /usr/share, not to the path Calamares reads. .zlogin copies it

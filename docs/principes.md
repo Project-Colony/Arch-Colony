@@ -70,8 +70,8 @@ que `Project-Colony-Resources` a été créé pour résoudre - SphereCord qui t�
 en amont, dans `Project-Colony-Resources`. C'est voulu.
 
 **L'installateur suit la règle par un autre chemin.** Il n'a pas de cible de générateur :
-ses fichiers de branding Calamares sont des gabarits (`branding.desc.in`, `stylesheet.qss.in`,
-`show.qml.in`) où chaque couleur est le *nom* d'un champ de `generated/themes.json`, écrit
+ses fichiers de branding Calamares et son menu de démarrage syslinux sont des gabarits
+(`branding.desc.in`, `stylesheet.qss.in`, `show.qml.in`, `archiso_head.cfg.in`) où chaque couleur est le *nom* d'un champ de `generated/themes.json`, écrit
 `@bg_primary@`, `@accent_blue@`… `iso/build.sh` les résout à la construction de l'ISO par
 `tools/resolve-theme.py`, et un nom qui n'existe pas dans la palette fait échouer la
 construction - Qt, lui, ignorerait la règle sans un mot. `COLONY_THEME=famille/variante`
