@@ -104,7 +104,9 @@ programme se fait dans son dépôt.
 
 GPL-3.0-or-later, comme le reste de l'écosystème.
 
-One exception: [`tools/gen-netinstall.py`](tools/gen-netinstall.py) is GPL-3.0-only.
-Its desktop, greeter and graphics driver tables are ported from
-[archinstall](https://github.com/archlinux/archinstall), which is GPL-3.0-only, and so
-is the installer package tree it generates into the install image.
+One exception: [`config/netinstall.yaml`](config/netinstall.yaml) and
+[`tools/gen-netinstall.py`](tools/gen-netinstall.py) are GPL-3.0-only, as each file's
+SPDX header says. The greeter and graphics driver tables are ported from
+[archinstall](https://github.com/archlinux/archinstall), which is GPL-3.0-only, the
+generator parses archinstall's desktop profiles, and so the installer package trees it
+generates into the install image are GPL-3.0-only too.

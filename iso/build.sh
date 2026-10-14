@@ -29,6 +29,7 @@ DEST="$ROOT/iso/out"
 : "${COLONY_SIGNING_KEY:?not set - see repo/genkey.sh}"
 [[ -d $SRC ]] || { echo "no profile at $SRC" >&2; exit 1; }
 command -v mkarchiso >/dev/null || { echo "mkarchiso missing: pacman -S archiso" >&2; exit 1; }
+python3 -c 'import yaml' 2>/dev/null || { echo "python-yaml missing: pacman -S python-yaml" >&2; exit 1; }
 
 shopt -s nullglob
 built=("$PKGS"/*.pkg.tar.zst)
@@ -94,21 +95,21 @@ if (( ${#templates[@]} )); then
 		"${templates[@]}" | sed "s|$STAGE/||g"
 fi
 
-# The installer's package tree is generated, not committed: it carries every
-# package in core and extra, which is a fact about the repositories on the
-# day the ISO is built rather than something to keep in git. Desktop and driver
-# definitions are derived from archinstall, which is GPL-3.0-only: see the
-# licence note in tools/gen-netinstall.py.
+# The installer's package trees are generated, not committed: they carry every
+# package in core and extra, which is a fact about the repositories on the day
+# the ISO is built rather than something to keep in git. Their wording, drivers
+# and login screens come from config/netinstall.yaml, and the desktops from
+# archinstall, which is GPL-3.0-only: see the licence note in that file.
 if [[ -f "$STAGE/airootfs/etc/calamares/modules/netinstall.conf" ]]; then
-	echo "==> generating the installer package tree"
-	# Written to /usr/share, not to the path Calamares reads. .zlogin copies it
-	# into place only if the user allowed network access at boot; otherwise it
-	# installs the offline placeholder instead. Everything on that page is a
-	# download, so offering it to someone who declined the network would let them
-	# select twenty desktops and reach a green "Finished" with none of them.
-	mkdir -p "$STAGE/airootfs/usr/share/colony"
+	echo "==> generating the installer package trees"
+	# Written to /usr/share, not to the path Calamares reads. .zlogin copies the
+	# one for the boot language into place, and only if the user allowed network
+	# access at boot; otherwise it installs the offline placeholder instead.
+	# Everything on that page is a download, so offering it to someone who
+	# declined the network would let them select twenty desktops and reach a
+	# green "Finished" with none of them.
 	"$ROOT/tools/gen-netinstall.py" --archinstall "$INPUTS/archinstall" \
-		> "$STAGE/airootfs/usr/share/colony/netinstall.yaml"
+		--out "$STAGE/airootfs/usr/share/colony"
 fi
 
 # The firewall the installer puts on the target, carried on the medium so that an

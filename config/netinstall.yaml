@@ -1,0 +1,235 @@
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# The installer's package page, as data. tools/gen-netinstall.py reads this file,
+# checks its shape, adds the desktop profiles it parses out of archinstall and the
+# repository listing, and writes one Calamares netinstall tree per language.
+#
+# Provenance and licence: the drivers, the greeters and the desktop overrides are
+# ported from archinstall (https://github.com/archlinux/archinstall) at the commit
+# ARCHINSTALL_COMMIT in iso/pins.env names. archinstall is GPL-3.0-only, not
+# GPL-3.0-or-later like the rest of Arch Colony, so this file and the trees
+# generated from it are GPL-3.0-only.
+#
+# Every string a user reads is an {en, fr} pair: English is canonical, French is a
+# translation, and tools/check-i18n.py fails CI when one side is missing. Calamares
+# 3.4 reads no per-language keys in a netinstall tree (PackageTreeItem takes a
+# plain "name" and "description"), so the generator writes a whole tree per
+# language and the live session installs the one matching the boot language.
+# Proper nouns (desktop and greeter names, Colony, paru) are not translated.
+#
+# {placeholders} are filled in by the generator: {unit}, {total}, {count}.
+
+# The four fixed headings of the page, in the order they appear, then the full
+# repository listing.
+groups:
+  desktops:
+    name: {en: "Desktops", fr: "Bureaux"}
+    description:
+      en: "Desktop environments and window managers"
+      fr: "Environnements de bureau et gestionnaires de fenêtres"
+    # The description of each desktop: which login screen it expects.
+    expects_greeter:
+      en: "expected login screen: {unit}"
+      fr: "écran de connexion attendu : {unit}"
+    expects_no_greeter:
+      en: "no login screen expected"
+      fr: "aucun écran de connexion attendu"
+  greeters:
+    name: {en: "Login screen", fr: "Écran de connexion"}
+    description:
+      en: "Pick one. SDDM is preselected and suits every desktop above."
+      fr: "Un seul. SDDM est pré-coché et convient à tous les bureaux ci-dessus."
+  drivers:
+    name: {en: "Graphics drivers", fr: "Pilotes graphiques"}
+    description:
+      en: "Pick the one that matches this machine's graphics card"
+      fr: "Choisir celui qui correspond à la carte de la machine"
+  colony:
+    name: {en: "Colony", fr: "Colony"}
+    description:
+      en: "The ecosystem's programs, from the [colony] repository"
+      fr: "Les programmes de l'écosystème, depuis le dépôt [colony]"
+  repositories:
+    name: {en: "Repositories", fr: "Dépôts"}
+    description:
+      en: "Every Arch package ({total}). Use the search box."
+      fr: "Tous les paquets d'Arch ({total}). Utilisez la recherche."
+    # One subgroup per repository, named after it.
+    repository:
+      en: "{count} packages"
+      fr: "{count} paquets"
+
+# Used in place of the generated tree when the user declined network access at
+# boot. Everything on the page has to be downloaded, so offering it would let
+# someone tick twenty desktops and reach a green "Finished" page on a machine with
+# no desktop and no explanation: Calamares logs a failed install as a warning,
+# not an error.
+#
+# A single group that cannot be ticked rather than an empty document: netinstall
+# wants a list of groups, and an empty file is a parse failure, not an empty page.
+offline:
+  name: {en: "Network disabled", fr: "Réseau désactivé"}
+  description:
+    en: >-
+      Network access was declined at boot. Additional software has to be
+      downloaded, so none is offered here. The installation carries on normally,
+      and everything can still be installed afterwards with pacman or paru.
+    fr: >-
+      Le réseau a été refusé au démarrage. Les logiciels supplémentaires se
+      téléchargent, ils ne sont donc pas proposés. L'installation continue
+      normalement, et tout reste installable ensuite avec pacman ou paru.
+
+# Graphics driver sets, from archinstall/lib/hardware.py (GfxDriver.gfx_packages).
+#
+# NVIDIA needs care here in a way it does not for Arch itself. The plain `nvidia`
+# and `nvidia-dkms` packages no longer exist; of the two that remain, `nvidia-open`
+# depends on `linux` and would drag the stock kernel onto a machine that ships
+# linux-hardened (ADR-0004), the same defect a code review already caught with
+# broadcom-wl. So the open kernel module is offered only in its DKMS form, and
+# linux-hardened-headers is added, which archinstall does not need because it lets
+# the user pick the kernel separately.
+drivers:
+  - name: {en: "All open-source drivers", fr: "Tous les pilotes libres"}
+    description:
+      en: "Suits any machine, unknown hardware included"
+      fr: "Convient à toute machine, matériel inconnu compris"
+    packages: [mesa, xf86-video-amdgpu, xf86-video-ati, xf86-video-nouveau,
+               libva-intel-driver, intel-media-driver, vpl-gpu-rt, libvpl,
+               vulkan-radeon, vulkan-intel, vulkan-nouveau]
+  - name: {en: "AMD / ATI (open source)", fr: "AMD / ATI (libre)"}
+    description: {en: "AMD and ATI cards", fr: "Cartes AMD et ATI"}
+    packages: [mesa, xf86-video-amdgpu, xf86-video-ati, vulkan-radeon]
+  - name: {en: "Intel (open source)", fr: "Intel (libre)"}
+    description: {en: "Intel integrated graphics", fr: "Graphiques intégrés Intel"}
+    packages: [mesa, libva-intel-driver, intel-media-driver, vpl-gpu-rt, libvpl,
+               vulkan-intel]
+  - name:
+      en: "NVIDIA - open kernel module (Turing and newer)"
+      fr: "NVIDIA - module noyau ouvert (Turing et plus récent)"
+    description:
+      en: >-
+        Open kernel module, proprietary user space. The DKMS variant is required:
+        nvidia-open depends on the stock linux kernel, which this distribution
+        does not ship.
+      fr: >-
+        Module noyau ouvert, espace utilisateur propriétaire. Variante DKMS
+        obligatoire : nvidia-open dépend du noyau linux standard, que cette
+        distribution ne livre pas.
+    packages: [nvidia-open-dkms, dkms, linux-hardened-headers, libva-nvidia-driver]
+  - name: {en: "NVIDIA - nouveau (open source)", fr: "NVIDIA - nouveau (libre)"}
+    description:
+      en: "Fully open-source driver, for older cards"
+      fr: "Pilote entièrement libre, cartes plus anciennes"
+    packages: [mesa, xf86-video-nouveau, vulkan-nouveau]
+  - name: {en: "Virtual machine", fr: "Machine virtuelle"}
+    description: {en: "VirtualBox, QEMU, VMware", fr: "VirtualBox, QEMU, VMware"}
+    packages: [mesa]
+
+# Login screens, in the order the page lists them, from archinstall's
+# ProfileHandler.install_greeter(). This matters more than it looks: archinstall
+# does NOT put the greeter in Profile.packages, it installs it separately. Reading
+# only `packages` therefore yields a desktop with no login manager, which installs
+# cleanly and then boots to a text console.
+#
+# `key` is the lowercased GreeterType member name, which is what the generator
+# reads out of `return GreeterType.Xxx`. The enum *values* are different strings
+# again (GreeterType.Lightdm == 'lightdm-gtk-greeter'), so neither the member name
+# nor the value is a package name: the mapping has to be explicit. `unit` is what
+# shellprocess_services.conf enables.
+#
+# The login screen is its own question, exactly as archinstall makes it one. It
+# used to be folded into each desktop's package list, so ticking three desktops
+# installed three greeters, and all three declare Alias=display-manager.service,
+# so they fought over one symlink. `systemctl enable` refuses to overwrite an
+# existing alias, so the FIRST one won, which on 2026-08-21 meant greetd: its
+# stock session is `agreety --cmd /bin/sh`, a text login on vt1. Someone who
+# picked COSMIC and Hyprland booted to what looked exactly like a broken install.
+#
+# archinstall never has that problem because it resolves a single greeter
+# (DesktopProfile.default_greeter_type returns one) and offers it as its own menu
+# item, with the desktop's default merely preselected. This is that shape,
+# expressed in the only vocabulary a static netinstall page has: one group,
+# preselected, and a description saying to pick one.
+#
+# sddm is the default because it serves the most desktops here and lists every
+# installed session, so it is right even when it is not the desktop's own.
+greeters:
+  - key: sddm
+    name: SDDM
+    packages: [sddm]
+    unit: sddm
+    selected: true
+    description:
+      en: "Recommended - offers every installed session"
+      fr: "Recommandé - propose toutes les sessions installées"
+  - key: gdm
+    name: GDM
+    packages: [gdm]
+    unit: gdm
+    description: {en: "GNOME's own", fr: "Celui de GNOME"}
+  - key: lightdm
+    name: LightDM
+    packages: [lightdm, lightdm-gtk-greeter]
+    unit: lightdm
+    description: {en: "Lightweight, GTK theme", fr: "Léger, thème GTK"}
+  - key: lightdmslick
+    name: LightDM (slick)
+    packages: [lightdm, lightdm-slick-greeter]
+    unit: lightdm
+    description: {en: "LightDM with the slick theme", fr: "LightDM avec le thème slick"}
+  - key: plasmaloginmanager
+    name: Plasma Login Manager
+    packages: [plasma-login-manager]
+    unit: plasmalogin
+    description: {en: "KDE Plasma's own", fr: "Celui de KDE Plasma"}
+  - key: cosmicsession
+    name: COSMIC Greeter
+    packages: [cosmic-greeter]
+    unit: cosmic-greeter
+    description: {en: "COSMIC's own", fr: "Celui de COSMIC"}
+  - key: ly
+    name: ly
+    packages: [ly]
+    unit: ly@tty1
+    description:
+      en: "Console-based and very light - replaces the getty on tty1"
+      fr: "En console, très léger - remplace le getty de tty1"
+  - key: greetddms
+    name: greetd
+    packages: [greetd]
+    unit: greetd
+    description:
+      en: "Opens a TEXT session until it is configured"
+      fr: "Sans configuration, il ouvre une session TEXTE"
+
+# Profiles whose package list cannot be read statically, because it depends on a
+# choice archinstall makes interactively. Arch Colony takes the default that
+# archinstall itself marks as recommended. Keyed by the profile's file name.
+desktop_overrides:
+  # PlasmaProfile.packages reads a flavour the user picks: plasma-meta, plasma or
+  # plasma-desktop. Meta is the one archinstall labels "Recommended". Its greeter
+  # is PlasmaLoginManager, not sddm.
+  plasma.py:
+    name: KDE Plasma
+    packages: [plasma-meta]
+    greeter: plasmaloginmanager
+
+# Offered from [colony], which, unlike multilib, the target's pacman.conf does get,
+# because the cleanup step appends colony-repo.conf to it. So these install.
+#
+# A short, chosen list rather than the repository's contents. calamares is the
+# installer and packages.conf removes it from the target on purpose;
+# colony-keyring, colony-mirrorlist, colony-mkinitcpio, colony-release and
+# colonyctl are already on the machine through the filesystem copy. Offering a
+# package that is installed, or one that is about to be removed, teaches people
+# not to trust the page.
+#
+# Colony Firewall Control is deliberately NOT here. Every install gets it, from
+# the signed repository on the medium (shellprocess_cleanup.conf), so offering it
+# as a tick box would offer something already on its way.
+colony:
+  - name: paru
+    description:
+      en: "AUR helper, to install from the community repositories"
+      fr: "Assistant AUR, pour installer depuis les dépôts communautaires"
+    packages: [paru]

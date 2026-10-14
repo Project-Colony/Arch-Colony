@@ -1,22 +1,27 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""Generate the Calamares netinstall tree for the Arch Colony installer.
+"""Generate the Calamares netinstall trees for the Arch Colony installer.
 
-Three sections come out of this:
+The page has five sections: desktops, login screens, graphics drivers, Colony
+programs, and every package in core and extra. Their wording, the drivers, the
+login screens and the Colony programs are data, in config/netinstall.yaml. This
+script checks that file's shape, adds the desktop profiles it parses out of
+archinstall and the repository listing, and writes one tree per language,
+because Calamares 3.4 reads no per-language keys in a netinstall tree:
 
-  Bureaux            the desktop profiles, ported from archinstall
-  Pilotes graphiques the graphics driver sets, ported from archinstall
-  Dépôts             every package in core and extra
+  OUT/netinstall-LANG.yaml          the full page
+  OUT/netinstall-offline-LANG.yaml  the placeholder for a session without network
 
-The desktop and driver data is derived from archinstall
+The desktop profiles are derived from archinstall
 (https://github.com/archlinux/archinstall), at the commit that ARCHINSTALL_COMMIT in
-iso/pins.env names. Deriving it rather than curating a list by hand is
+iso/pins.env names. Deriving them rather than curating a list by hand is
 deliberate: the packages that make up a working GNOME or Hyprland session are a
 fact about Arch, not an opinion this project should be forming on its own.
 
 Licence: archinstall is GPL-3.0-only, not GPL-3.0-or-later like the rest of
-Arch Colony. The DRIVERS, GREETERS and OVERRIDES tables below are ported from
-it, so this file, and the package tree it writes, are GPL-3.0-only.
+Arch Colony. This file parses it, config/netinstall.yaml carries tables ported
+from it, and the trees it writes are derived from both, so all of them are
+GPL-3.0-only.
 
 The repository listing is a snapshot taken when the ISO is built. archinstall can
 regenerate it at install time because it runs pacman itself; Calamares reads a
@@ -24,7 +29,7 @@ static file, so a very old ISO will offer packages that have since been renamed.
 Those simply fail to install - worth knowing, not worth blocking on.
 
 Usage:
-    tools/gen-netinstall.py --archinstall /path/to/archinstall > netinstall.yaml
+    tools/gen-netinstall.py --archinstall /path/to/archinstall --out DIR
 """
 
 from __future__ import annotations
@@ -35,122 +40,114 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Driver sets, from archinstall/lib/hardware.py (GfxDriver.gfx_packages).
-#
-# NVIDIA needs care here in a way it does not for Arch itself. The plain `nvidia`
-# and `nvidia-dkms` packages no longer exist; of the two that remain, `nvidia-open`
-# depends on `linux` and would drag the stock kernel onto a machine that ships
-# linux-hardened (ADR-0004) - the same defect a code review already caught with
-# broadcom-wl. So the open kernel module is offered only in its DKMS form, and
-# linux-hardened-headers is added, which archinstall does not need because it lets
-# the user pick the kernel separately.
-DRIVERS = [
-    ("Tous les pilotes libres", "Convient à toute machine, matériel inconnu compris", [
-        "mesa", "xf86-video-amdgpu", "xf86-video-ati", "xf86-video-nouveau",
-        "libva-intel-driver", "intel-media-driver", "vpl-gpu-rt", "libvpl",
-        "vulkan-radeon", "vulkan-intel", "vulkan-nouveau",
-    ]),
-    ("AMD / ATI (libre)", "Cartes AMD et ATI", [
-        "mesa", "xf86-video-amdgpu", "xf86-video-ati", "vulkan-radeon",
-    ]),
-    ("Intel (libre)", "Graphiques intégrés Intel", [
-        "mesa", "libva-intel-driver", "intel-media-driver", "vpl-gpu-rt", "libvpl",
-        "vulkan-intel",
-    ]),
-    ("NVIDIA - module noyau ouvert (Turing et plus récent)",
-     "Module noyau ouvert, espace utilisateur propriétaire. Variante DKMS obligatoire : "
-     "nvidia-open dépend du noyau linux standard, que cette distribution ne livre pas.", [
-        "nvidia-open-dkms", "dkms", "linux-hardened-headers", "libva-nvidia-driver",
-    ]),
-    ("NVIDIA - nouveau (libre)", "Pilote entièrement libre, cartes plus anciennes", [
-        "mesa", "xf86-video-nouveau", "vulkan-nouveau",
-    ]),
-    ("Machine virtuelle", "VirtualBox, QEMU, VMware", [
-        "mesa",
-    ]),
-]
+import yaml
+
+CONFIG = Path(__file__).resolve().parent.parent / "config" / "netinstall.yaml"
+LANGS = ("en", "fr")
 
 
-# Greeter packages and the unit to enable, from archinstall's
-# ProfileHandler.install_greeter(). This matters more than it looks: archinstall
-# does NOT put the greeter in Profile.packages, it installs it separately. Reading
-# only `packages` therefore yields a desktop with no login manager, which installs
-# cleanly and then boots to a text console.
-#
-# Keyed by the lowercased GreeterType member name, which is what the parser reads
-# out of `return GreeterType.Xxx`. The enum *values* are different strings again
-# (GreeterType.Lightdm == 'lightdm-gtk-greeter'), so neither the member name nor
-# the value is a package name - the mapping has to be explicit.
-GREETERS = {
-    "lightdm": (["lightdm", "lightdm-gtk-greeter"], "lightdm"),
-    "lightdmslick": (["lightdm", "lightdm-slick-greeter"], "lightdm"),
-    "sddm": (["sddm"], "sddm"),
-    "gdm": (["gdm"], "gdm"),
-    "ly": (["ly"], "ly@tty1"),
-    "cosmicsession": (["cosmic-greeter"], "cosmic-greeter"),
-    "plasmaloginmanager": (["plasma-login-manager"], "plasmalogin"),
-    "greetddms": (["greetd"], "greetd"),
-}
-
-# The login screen is its own question, exactly as archinstall makes it one.
-#
-# It used to be folded into each desktop's package list, so ticking three
-# desktops installed three greeters - and all three declare
-# Alias=display-manager.service, so they fought over one symlink. `systemctl
-# enable` refuses to overwrite an existing alias, so the FIRST one won, which
-# on 2026-08-21 meant greetd: its stock session is `agreety --cmd /bin/sh`, a
-# text login on vt1. Someone who picked COSMIC and Hyprland booted to what
-# looked exactly like a broken install.
-#
-# archinstall never has that problem because it resolves a single greeter
-# (DesktopProfile.default_greeter_type returns one) and offers it as its own
-# menu item, with the desktop's default merely preselected. This is that shape,
-# expressed in the only vocabulary a static netinstall page has: one group,
-# preselected, and a description saying to pick one.
-#
-# sddm is the default because it serves the most desktops here and lists every
-# installed session, so it is right even when it is not the desktop's own.
-GREETER_ORDER = [
-    ("sddm", "SDDM", "Recommandé - propose toutes les sessions installées", True),
-    ("gdm", "GDM", "Celui de GNOME", False),
-    ("lightdm", "LightDM", "Léger, thème GTK", False),
-    ("lightdmslick", "LightDM (slick)", "LightDM avec le thème slick", False),
-    ("plasmaloginmanager", "Plasma Login Manager", "Celui de KDE Plasma", False),
-    ("cosmicsession", "COSMIC Greeter", "Celui de COSMIC", False),
-    ("ly", "ly", "En console, très léger - remplace le getty de tty1", False),
-    ("greetddms", "greetd", "Sans configuration, il ouvre une session TEXTE", False),
-]
-
-# Profiles whose package list cannot be read statically, because it depends on a
-# choice archinstall makes interactively. Arch Colony takes the default that
-# archinstall itself marks as recommended.
-OVERRIDES = {
-    # PlasmaProfile.packages reads a flavour the user picks: plasma-meta,
-    # plasma or plasma-desktop. Meta is the one archinstall labels "Recommended".
-    # Its greeter is PlasmaLoginManager, not sddm.
-    "plasma.py": {"name": "KDE Plasma", "packages": ["plasma-meta"],
-                  "greeter": "plasmaloginmanager"},
-}
+def fail(where: str, msg: str) -> "NoReturn":
+    sys.exit(f"{CONFIG}: {where}: {msg}")
 
 
-# Offered from [colony], which - unlike multilib - the target's pacman.conf does
-# get, because the cleanup step appends colony-repo.conf to it. So these install.
-#
-# A short, chosen list rather than the repository's contents. calamares is the
-# installer and packages.conf removes it from the target on purpose;
-# colony-keyring, colony-mirrorlist, colony-mkinitcpio, colony-release and
-# colonyctl are already on the machine through the filesystem copy. Offering a
-# package that is installed, or one that is about to be removed, teaches people
-# not to trust the page.
-# Colony Firewall Control is deliberately NOT here any more. Every install gets
-# it, from the signed repository on the medium (shellprocess_cleanup.conf), so
-# offering it as a tick box would offer something already on its way - and a
-# page that offers what you are getting anyway teaches people not to read it.
-COLONY = [
-    ("paru",
-     "Assistant AUR, pour installer depuis les dépôts communautaires",
-     ["paru"]),
-]
+def _text(node, where: str) -> dict[str, str]:
+    """A string a user reads: exactly one non-empty translation per language."""
+    if (not isinstance(node, dict) or set(node) != set(LANGS)
+            or not all(isinstance(v, str) and v.strip() for v in node.values())):
+        fail(where, f"expected a non-empty {{{', '.join(LANGS)}}} pair, got {node!r}")
+    return node
+
+
+def _name(node, where: str) -> str:
+    if not isinstance(node, str) or not node.strip():
+        fail(where, f"expected a non-empty string, got {node!r}")
+    return node
+
+
+def _packages(node, where: str) -> list[str]:
+    if not isinstance(node, list) or not node:
+        fail(where, f"expected a non-empty package list, got {node!r}")
+    for i, p in enumerate(node):
+        _name(p, f"{where}[{i}]")
+    return node
+
+
+def _list(node, where: str) -> list[dict]:
+    if not isinstance(node, list) or not node or not all(isinstance(e, dict) for e in node):
+        fail(where, "expected a non-empty list of mappings")
+    return node
+
+
+def load_config(path: Path = CONFIG) -> dict:
+    """Read config/netinstall.yaml and refuse anything the generator cannot render.
+
+    A typo here would otherwise surface in the installer, as a group with no
+    name or a page missing in one language, on a machine with no way to report it.
+    """
+    with open(path, encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    if not isinstance(cfg, dict):
+        fail("top level", "expected a mapping")
+
+    groups = cfg.get("groups")
+    if not isinstance(groups, dict):
+        fail("groups", "expected a mapping")
+    extra = {"desktops": ("expects_greeter", "expects_no_greeter"),
+             "repositories": ("repository",)}
+    for key in ("desktops", "greeters", "drivers", "colony", "repositories"):
+        g = groups.get(key)
+        if not isinstance(g, dict):
+            fail(f"groups.{key}", "missing")
+        for field in ("name", "description", *extra.get(key, ())):
+            _text(g.get(field), f"groups.{key}.{field}")
+
+    offline = cfg.get("offline")
+    if not isinstance(offline, dict):
+        fail("offline", "missing")
+    for field in ("name", "description"):
+        _text(offline.get(field), f"offline.{field}")
+
+    for i, d in enumerate(_list(cfg.get("drivers"), "drivers")):
+        _text(d.get("name"), f"drivers[{i}].name")
+        _text(d.get("description"), f"drivers[{i}].description")
+        _packages(d.get("packages"), f"drivers[{i}].packages")
+
+    keys = set()
+    for i, g in enumerate(_list(cfg.get("greeters"), "greeters")):
+        where = f"greeters[{i}]"
+        key = _name(g.get("key"), f"{where}.key")
+        if key in keys:
+            fail(f"{where}.key", f"'{key}' is listed twice")
+        keys.add(key)
+        _name(g.get("name"), f"{where}.name")
+        _name(g.get("unit"), f"{where}.unit")
+        _packages(g.get("packages"), f"{where}.packages")
+        _text(g.get("description"), f"{where}.description")
+        if not isinstance(g.get("selected", False), bool):
+            fail(f"{where}.selected", "expected true or false")
+    # One login screen, preselected: two would bring back the alias fight the
+    # group exists to end, none would let a desktop install without one.
+    if sum(g.get("selected", False) for g in cfg["greeters"]) != 1:
+        fail("greeters", "exactly one must be selected")
+
+    overrides = cfg.get("desktop_overrides", {})
+    if not isinstance(overrides, dict):
+        fail("desktop_overrides", "expected a mapping of profile file names")
+    for source, o in overrides.items():
+        where = f"desktop_overrides.{source}"
+        if not isinstance(o, dict):
+            fail(where, "expected a mapping")
+        _name(o.get("name"), f"{where}.name")
+        _packages(o.get("packages"), f"{where}.packages")
+        if o.get("greeter") is not None and o["greeter"] not in keys:
+            fail(f"{where}.greeter", f"'{o['greeter']}' is not a key under greeters")
+
+    for i, c in enumerate(_list(cfg.get("colony"), "colony")):
+        _name(c.get("name"), f"colony[{i}].name")
+        _text(c.get("description"), f"colony[{i}].description")
+        _packages(c.get("packages"), f"colony[{i}].packages")
+
+    return cfg
 
 
 def _strings(node: ast.AST, consts: dict[str, list[str]]) -> list[str] | None:
@@ -184,7 +181,7 @@ def _strings(node: ast.AST, consts: dict[str, list[str]]) -> list[str] | None:
     return None
 
 
-def parse_desktop(path: Path) -> dict | None:
+def parse_desktop(path: Path, overrides: dict) -> dict | None:
     """Pull name, packages and greeter out of an archinstall desktop profile.
 
     Parsed with `ast`, not with regular expressions. Regex parsing of Python
@@ -194,8 +191,8 @@ def parse_desktop(path: Path) -> dict | None:
     only reject wholesale. `ast` removes both classes of mistake, and the module
     constants it can now resolve are why niri_dms is offered at all.
     """
-    if path.name in OVERRIDES:
-        return dict(OVERRIDES[path.name], source=path.name)
+    if path.name in overrides:
+        return dict(overrides[path.name], source=path.name)
 
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -274,42 +271,75 @@ def repo_packages(repos: list[str]) -> dict[str, list[str]]:
     return out
 
 
-def emit(groups: list[dict]) -> str:
-    lines = ["# GENERATED by tools/gen-netinstall.py - do not edit.",
-             "#",
-             "# Desktop and driver data derived from archinstall (GPL-3.0-only).",
-             "# Repository listings are a snapshot taken when the ISO was built.",
-             ""]
-    for g in groups:
-        lines.append(f'- name: "{g["name"]}"')
-        if g.get("description"):
-            lines.append(f'  description: "{g["description"]}"')
-        lines.append("  selected: false")
-        lines.append(f'  expanded: {"true" if g.get("expanded") else "false"}')
-        if g.get("noncheckable"):
-            lines.append("  noncheckable: true")
-        if g.get("packages"):
-            lines.append("  packages:")
-            lines.extend(f'    - "{p}"' for p in g["packages"])
-        if g.get("subgroups"):
-            lines.append("  subgroups:")
-            for sub in g["subgroups"]:
-                lines.append(f'    - name: "{sub["name"]}"')
-                if sub.get("description"):
-                    lines.append(f'      description: "{sub["description"]}"')
-                lines.append(f'      selected: {"true" if sub.get("selected") else "false"}')
-                if sub.get("noncheckable"):
-                    lines.append("      noncheckable: true")
-                lines.append("      packages:")
-                lines.extend(f'        - "{p}"' for p in sub["packages"])
-        lines.append("")
-    return "\n".join(lines)
+def render(cfg: dict, desktops: list[dict], repos: dict[str, list[str]], lang: str) -> list[dict]:
+    """The full page in one language, as the list of groups Calamares reads."""
+    groups = cfg["groups"]
+
+    def group(key: str, subgroups: list[dict], **fields) -> dict:
+        return {"name": groups[key]["name"][lang],
+                "description": groups[key]["description"][lang].format(**fields),
+                "selected": False, "expanded": True, "subgroups": subgroups}
+
+    def sub(name: str, description: str, packages: list[str], selected: bool = False) -> dict:
+        return {"name": name, "description": description,
+                "selected": selected, "packages": packages}
+
+    total = sum(len(names) for names in repos.values())
+    expects = groups["desktops"]
+    return [
+        group("desktops", [
+            sub(d["name"],
+                expects["expects_greeter"][lang].format(unit=d["greeter_unit"])
+                if d.get("greeter_unit") else expects["expects_no_greeter"][lang],
+                d["packages"])
+            for d in desktops
+        ]),
+        group("greeters", [
+            sub(g["name"], g["description"][lang], g["packages"], g.get("selected", False))
+            for g in cfg["greeters"]
+        ]),
+        group("drivers", [
+            sub(d["name"][lang], d["description"][lang], d["packages"]) for d in cfg["drivers"]
+        ]),
+        group("colony", [
+            sub(c["name"], c["description"][lang], c["packages"]) for c in cfg["colony"]
+        ]),
+        # noncheckable, and this is not cosmetic. PackageTreeItem::setSelected walks
+        # the source tree, so ticking "extra" would select all 14910 of its packages
+        # in one click - and the filter proxy makes that easy to do by accident, since
+        # a search leaves the group visible with only its matches shown underneath.
+        # noncheckable removes Qt::ItemIsUserCheckable from the group alone; unlike
+        # immutable it does not propagate, so individual packages stay selectable.
+        dict(group("repositories", [
+            dict(sub(repo, groups["repositories"]["repository"][lang].format(count=len(names)),
+                     names), noncheckable=True)
+            for repo, names in repos.items()
+        ], total=total), expanded=False, noncheckable=True),
+    ]
+
+
+def render_offline(cfg: dict, lang: str) -> list[dict]:
+    offline = cfg["offline"]
+    return [{"name": offline["name"][lang], "description": offline["description"][lang],
+             "selected": False, "expanded": False, "noncheckable": True, "packages": []}]
+
+
+def write(path: Path, groups: list[dict]) -> None:
+    header = ("# GENERATED by tools/gen-netinstall.py from config/netinstall.yaml - do not edit.\n"
+              "# SPDX-License-Identifier: GPL-3.0-only\n"
+              "#\n"
+              "# Desktop, greeter and driver data derived from archinstall (GPL-3.0-only).\n"
+              "# Repository listings are a snapshot taken when the ISO was built.\n\n")
+    path.write_text(header + yaml.safe_dump(groups, allow_unicode=True, sort_keys=False),
+                    encoding="utf-8")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--archinstall", required=True, type=Path,
                     help="path to an archinstall checkout")
+    ap.add_argument("--out", required=True, type=Path,
+                    help="directory to write the trees into")
     # multilib is deliberately absent. It is not enabled in the target's
     # pacman.conf - mkarchiso pacstraps with -G -M and installs pacman's stock
     # config, and the cleanup step only adds [colony] - so every lib32 package
@@ -317,6 +347,9 @@ def main() -> None:
     # cannot work is worse than not offering it.
     ap.add_argument("--repos", nargs="+", default=["core", "extra"])
     args = ap.parse_args()
+
+    cfg = load_config()
+    greeters = {g["key"]: g for g in cfg["greeters"]}
 
     desktops_dir = args.archinstall / "archinstall" / "default_profiles" / "desktops"
     if not desktops_dir.is_dir():
@@ -327,15 +360,15 @@ def main() -> None:
     for path in sorted(desktops_dir.glob("*.py")):
         if path.name in ("__init__.py", "utils.py"):
             continue
-        parsed = parse_desktop(path)
+        parsed = parse_desktop(path, cfg.get("desktop_overrides", {}))
         if parsed:
             desktops.append(parsed)
         else:
             skipped.append(path.name)
 
     if skipped:
-        print(f"# profils non analysables, ignorés : {', '.join(skipped)}", file=sys.stderr)
-    print(f"# {len(desktops)} bureaux extraits", file=sys.stderr)
+        print(f"# profiles that could not be parsed, skipped: {', '.join(skipped)}", file=sys.stderr)
+    print(f"# {len(desktops)} desktops", file=sys.stderr)
 
     # The greeter is not part of archinstall's Profile.packages; it is installed
     # separately by install_greeter(). Without this, every desktop here would
@@ -344,88 +377,31 @@ def main() -> None:
         g = d.get("greeter")
         if g is None:
             continue
-        if g not in GREETERS:
-            sys.exit(f"{d['source']}: unknown GreeterType '{g}' - add it to GREETERS. "
-                     "Refusing to emit a desktop that would install without a login manager.")
+        if g not in greeters:
+            sys.exit(f"{d['source']}: unknown GreeterType '{g}' - add it under greeters in "
+                     f"{CONFIG}. Refusing to emit a desktop that would install without a "
+                     "login manager.")
         # Kept for the description only. Merging these into d["packages"] is
         # what produced three greeters for three desktops; the login screen is
-        # chosen once, in its own group below.
-        d["greeter_unit"] = GREETERS[g][1]
+        # chosen once, in its own group.
+        d["greeter_unit"] = greeters[g]["unit"]
 
     # Strip greeters from the desktop lists outright, because some profiles put
     # theirs in `packages` upstream - i3 lists lightdm and lightdm-gtk-greeter
     # itself - and archinstall does not mind, since install_greeter runs anyway
     # and pacman is idempotent. Here it matters: a desktop that quietly brings a
     # second greeter recreates the alias fight the separate group exists to end.
-    greeter_pkgs = {pkg for pkgs, _ in GREETERS.values() for pkg in pkgs}
+    greeter_pkgs = {pkg for g in greeters.values() for pkg in g["packages"]}
     for d in desktops:
         d["packages"] = [p for p in d["packages"] if p not in greeter_pkgs]
 
-    groups = [
-        {
-            "name": "Bureaux",
-            "description": "Environnements de bureau et gestionnaires de fenêtres",
-            "expanded": True,
-            "subgroups": [
-                {
-                    "name": d["name"],
-                    "description": (f"écran de connexion attendu : {d['greeter_unit']}"
-                                    if d.get("greeter_unit") else "aucun écran de connexion attendu"),
-                    "packages": d["packages"],
-                }
-                for d in desktops
-            ],
-        },
-        {
-            "name": "Écran de connexion",
-            "description": "Un seul. SDDM est pré-coché et convient à tous les bureaux ci-dessus.",
-            "expanded": True,
-            "subgroups": [
-                {"name": label, "description": desc,
-                 "selected": default, "packages": GREETERS[key][0]}
-                for key, label, desc, default in GREETER_ORDER
-            ],
-        },
-        {
-            "name": "Pilotes graphiques",
-            "description": "Choisir celui qui correspond à la carte de la machine",
-            "expanded": True,
-            "subgroups": [
-                {"name": n, "description": d, "packages": p} for n, d, p in DRIVERS
-            ],
-        },
-        {
-            "name": "Colony",
-            "description": "Les programmes de l'écosystème, depuis le dépôt [colony]",
-            "expanded": True,
-            "subgroups": [
-                {"name": n, "description": d, "packages": p} for n, d, p in COLONY
-            ],
-        },
-    ]
-
     repos = repo_packages(args.repos)
-    total = sum(len(v) for v in repos.values())
-    print(f"# {total} paquets de dépôt", file=sys.stderr)
-    # noncheckable, and this is not cosmetic. PackageTreeItem::setSelected walks
-    # the source tree, so ticking "extra" would select all 14910 of its packages
-    # in one click - and the filter proxy makes that easy to do by accident, since
-    # a search leaves the group visible with only its matches shown underneath.
-    # noncheckable removes Qt::ItemIsUserCheckable from the group alone; unlike
-    # immutable it does not propagate, so individual packages stay selectable.
-    groups.append({
-        "name": "Dépôts",
-        "description": f"Tous les paquets d'Arch ({total}). Utiliser la recherche.",
-        "expanded": False,
-        "noncheckable": True,
-        "subgroups": [
-            {"name": repo, "description": f"{len(names)} paquets",
-             "noncheckable": True, "packages": names}
-            for repo, names in repos.items()
-        ],
-    })
+    print(f"# {sum(len(v) for v in repos.values())} repository packages", file=sys.stderr)
 
-    print(emit(groups))
+    args.out.mkdir(parents=True, exist_ok=True)
+    for lang in LANGS:
+        write(args.out / f"netinstall-{lang}.yaml", render(cfg, desktops, repos, lang))
+        write(args.out / f"netinstall-offline-{lang}.yaml", render_offline(cfg, lang))
 
 
 if __name__ == "__main__":

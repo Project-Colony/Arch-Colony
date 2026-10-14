@@ -11,6 +11,7 @@ iso/out/
 # binary blob and no guarantee.
 packages/*/*.tar.gz
 packages/*/*.tar.xz
+packages/*/themes-*.json
 src/
 pkg/
 

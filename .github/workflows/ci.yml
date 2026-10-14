@@ -128,13 +128,21 @@ jobs:
             exit 1
           fi
 
-      - name: Installer package tree from the pinned archinstall
+      - name: Installer package trees from the pinned archinstall
         run: |
-          out=$RUNNER_TEMP/netinstall.yaml
-          tools/gen-netinstall.py --archinstall "$RUNNER_TEMP/inputs/archinstall" > "$out"
-          # Calamares reads this file at install time; a quoting slip in the
+          out=$RUNNER_TEMP/netinstall
+          tools/gen-netinstall.py --archinstall "$RUNNER_TEMP/inputs/archinstall" --out "$out"
+          # Calamares reads these at install time; a slip in the data or the
           # generator would only show up there.
-          python -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' "$out"
+          for f in "$out"/netinstall-{,offline-}{en,fr}.yaml; do
+            python -c 'import sys, yaml; assert yaml.safe_load(open(sys.argv[1]))' "$f"
+          done
+
+      - name: colony-release reads the palette the installer is pinned to
+        run: |
+          . iso/pins.env
+          grep -qx "_resources=$RESOURCES_COMMIT" packages/colony-release/PKGBUILD
+          grep -q "'$THEMES_SHA256'" packages/colony-release/PKGBUILD
 
   packages:
     name: Build changed packages
