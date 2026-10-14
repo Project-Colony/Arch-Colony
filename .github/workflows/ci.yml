@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Install tools
         run: |
-          pacman -Syu --noconfirm --needed git python shellcheck zsh
+          pacman -Syu --noconfirm --needed actionlint git python shellcheck zsh
           # The checkout belongs to the runner's user, not to root in here.
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
@@ -42,6 +42,12 @@ jobs:
 
       - name: Compile the Python tools
         run: python -m py_compile tools/*.py
+
+      # The release workflow only runs in full on main and on the pull requests
+      # that touch it, so its syntax and its scripts are checked here, on every
+      # pull request. actionlint runs shellcheck over each `run:`.
+      - name: actionlint
+        run: actionlint
 
   tools:
     name: Tests and installer inputs
@@ -65,6 +71,9 @@ jobs:
 
       - name: colony-mirrorlist SigLevel migration
         run: tools/test-mirrorlist-migration.sh
+
+      - name: Which packages a release builds, and no downgrade
+        run: tools/test-pending-packages.sh
 
       - name: Signed [colony] repository, end to end
         run: |
@@ -148,7 +157,8 @@ jobs:
           # a git error must fail the job, not read as "nothing changed".
           changed=$(git diff --name-only "$BASE" HEAD -- packages/)
           dirs=()
-          for name in $(cut -d/ -f2 <<<"$changed" | sort -u); do
+          mapfile -t names < <(cut -d/ -f2 <<<"$changed" | sort -u)
+          for name in "${names[@]}"; do
             [[ -f packages/$name/PKGBUILD ]] && dirs+=("packages/$name")
           done
           if (( ! ${#dirs[@]} )); then
@@ -165,7 +175,8 @@ jobs:
           # depend on: no repository this container knows serves them.
           declare -A dir_of=()
           for srcinfo in packages/*/.SRCINFO; do
-            for name in $(sed -n 's/^pkgname = //p' "$srcinfo"); do
+            mapfile -t names < <(sed -n 's/^pkgname = //p' "$srcinfo")
+            for name in "${names[@]}"; do
               dir_of[$name]=${srcinfo%/.SRCINFO}
             done
           done
@@ -173,11 +184,12 @@ jobs:
           declare -A built=()
           failed=0
           build() {
-            local dir=$1 name=${1#packages/} dep need out
+            local dir=$1 name=${1#packages/} dep need out deps
             [[ -z ${built[$dir]:-} ]] || return 0
             built[$dir]=1
 
-            for dep in $(sed -nE 's/^\t(make|check)?depends = ([^<>=]+).*/\2/p' "$dir/.SRCINFO" | sort -u); do
+            mapfile -t deps < <(sed -nE 's/^\t(make|check)?depends = ([^<>=]+).*/\2/p' "$dir/.SRCINFO" | sort -u)
+            for dep in "${deps[@]}"; do
               need=${dir_of[$dep]:-}
               [[ -n $need && $need != "$dir" ]] || continue
               build "$need"

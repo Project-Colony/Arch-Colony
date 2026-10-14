@@ -47,7 +47,9 @@ stops the install if they do not install or their units are not enabled.
 
 `build.sh` assembles that repository with [`offline-repo.sh`](offline-repo.sh): it
 copies the three packages and the signatures `repo/build.sh` made from `repo/out`, then
-signs a `colony-offline` database over them with `COLONY_SIGNING_KEY`. The
+signs a `colony-offline` database over them with `COLONY_SIGNING_KEY`. Without that
+key, as in the release workflow, whose image build holds none, `build.sh` takes the
+repository its signing job made, from `repo/out/offline`, and checks its signature first. The
 [`pacman.conf`](install/airootfs/usr/share/colony/offline-repo/pacman.conf) next to it
 requires a Colony signature on the database and on every package.
 

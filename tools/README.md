@@ -14,34 +14,55 @@ and on every push to `main`, in an `archlinux:base-devel` container.
 | Check | Run it locally with |
 |---|---|
 | shellcheck on every `*.sh`, `colonyctl` and the install scriptlets, `zsh -n` on the live session's `.zlogin`, `py_compile` on `tools/*.py` | the same commands |
+| actionlint on every workflow, shellcheck included on each `run:` | `actionlint` |
+| Which packages a release builds, and that a version older than the published one is refused | `tools/test-pending-packages.sh` |
 | [ADR-0002](../docs/decisions/0002-regle-de-non-recouvrement.md): nothing in `packages/` shadows `[core]`, `[extra]` or `[multilib]` | `tools/check-shadowing.sh` |
 | The `colony-mirrorlist` SigLevel migration | `tools/test-mirrorlist-migration.sh` |
-| The signed `[colony]` chain end to end, and the installer's offline firewall repository through its own `pacman.conf`, signed in CI with a throwaway key | `tools/test-repo.sh` |
+| The signed `[colony]` chain end to end, and the installer's offline firewall repository through its own `pacman.conf`, which refuses an unsigned database or package, signed in CI with a throwaway key | `tools/test-repo.sh` |
 | The installer templates resolve in every palette of the pinned `themes.json`, and the package tree generates from the pinned archinstall | `iso/fetch-inputs.sh DIR`, then `tools/resolve-theme.py` and `tools/gen-netinstall.py` |
 | Each package the change touches builds with `makepkg -s`, passes `namcap` without errors, and its `.SRCINFO` equals `makepkg --printsrcinfo` | `makepkg --printsrcinfo > .SRCINFO` |
 
 `tools/test-repo.sh` trusts the key in `packages/colony-keyring/colony.gpg` unless
 `COLONY_PUBKEY` names another public key file.
 
+## Checks run by the release workflow
+
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) builds, signs and
+publishes a release, and runs these on the signed artefacts before anything is published.
+A pull request that changes the workflow or these scripts runs the same chain as a dry
+run, signed with a throwaway key.
+
+| Step | Script |
+|---|---|
+| Build only what is newer than what `[colony]` serves; refuse a downgrade | `tools/pending-packages.sh` |
+| The `[colony]` trust chain and the installer's offline repository, on the very databases about to be published. It skips the unsigned package case, which signs a database of its own and so needs a key | `COLONY_PREBUILT_DB=1 tools/test-repo.sh` |
+| The image boots under KVM to a working live system, checked on its serial console | `tools/vm-headless.py smoke ISO` |
+| An offline install from the image, through the installer's own pages, boots with the firewall running | `tools/vm-headless.py autoinstall`, then `check-firewall` (below) |
+
 ## Driving an image in a VM
 
 [`vm-headless.py`](vm-headless.py) boots an image in QEMU with no window and drives it
-through the QEMU monitor and the guest agent. It needs KVM, so CI does not run it.
+through the QEMU monitor and the guest agent. It needs KVM, `edk2-ovmf` and `qemu-base` with
+`qemu-hw-display-virtio-gpu` and `qemu-hw-display-virtio-vga`, and no key: `smoke` runs on
+any image.
 
-The offline install path, which has to put the firewall in from the medium:
+The offline install path, which has to put the firewall in from the medium, as the
+release workflow runs it:
 
 ```
-tools/vm-headless.py start install --offline    # then install, keyboard only
+tools/vm-headless.py start install --offline    # the newest image in iso/out, no network card
+tools/vm-headless.py autoinstall                # every installer page, erase the disk, install
 tools/vm-headless.py installed --offline        # first boot of the installed disk
 tools/vm-headless.py check-firewall             # fails unless the firewall runs
+tools/vm-headless.py stop
 ```
+
+`autoinstall` answers no to the live session's network question, steps through the
+installer with the keyboard and waits for the installer's log to report the result. The
+one thing it changes on the medium is the partition page's preselected choice, set to
+"Erase disk", the click a person makes there. A failure leaves the last screen and the
+installer's log in `~/.cache/arch-colony/`.
 
 `check-firewall` asserts that `colony-firewall-nft`, `colony-firewalld` and
 `colony-firewall-seed` are active and the eBPF object is installed, and prints
 `colonyctl status`. `exec CMD` runs any other command in the guest.
-
-## Prévu
-
-- **Tests en VM.** Démarrage d'un ISO en QEMU, installation sans interaction, assertions sur
-  l'état du système obtenu. Porte de sortie de release à partir de
-  [J2](../docs/feuille-de-route.md#j2--installable-sur-disque---fait-le-2026-08-21).

@@ -15,7 +15,8 @@
 # iso/build.sh does, with colony-mirrorlist standing in for the firewall packages
 # CI does not build here, and the pacman.conf the installer uses must install from
 # it, refuse it once its database signature is gone, and refuse a package whose
-# own signature is gone.
+# own signature is gone. With COLONY_PREBUILT_DB, the one in repo/out/offline is
+# tested instead, without the last case.
 
 set -euo pipefail
 
@@ -24,10 +25,15 @@ OUT="$ROOT/repo/out"
 KEYRING="$ROOT/packages/colony-keyring"
 STANZA="$ROOT/packages/colony-mirrorlist/colony-repo.conf"
 
+# The key the sandbox trusts, and the one that signs the database it builds.
 : "${COLONY_SIGNING_KEY:?not set - see repo/genkey.sh}"
 # The public key the sandbox is told to trust. CI holds no Colony key, so it
 # signs with a throwaway one and points this at its export.
 PUBKEY="${COLONY_PUBKEY:-$KEYRING/colony.gpg}"
+# COLONY_PREBUILT_DB=1 tests the signed database repo/out already holds instead
+# of building one, which needs no secret key: the release workflow uses it on
+# the database it is about to publish.
+PREBUILT="${COLONY_PREBUILT_DB:-}"
 
 # Already root, as in a container: no sudo needed, and none may be installed.
 SUDO=sudo
@@ -50,11 +56,22 @@ fail() { echo "FAIL: $*" >&2; exit 1; }
 
 echo "==> sandbox: $TEST"
 mkdir -p "$TEST"/{root,cache,repo,gnupg}
-cp "$OUT"/*.pkg.tar.zst "$OUT"/*.sig "$TEST/repo/"
+cp "$OUT"/*.pkg.tar.zst "$OUT"/*.pkg.tar.zst.sig "$TEST/repo/"
 
-echo "==> building the signed database"
-( cd "$TEST/repo" && repo-add --sign --key "$COLONY_SIGNING_KEY" --new --quiet \
-	colony.db.tar.zst ./*.pkg.tar.zst )
+if [[ -n $PREBUILT ]]; then
+	echo "==> the signed database from repo/out"
+	for f in colony.db.tar.zst colony.files.tar.zst; do
+		cp "$OUT/$f" "$OUT/$f.sig" "$TEST/repo/" || fail "repo/out has no signed $f"
+		# The names pacman fetches, as links the way repo-add leaves them: a
+		# case below replaces colony.db.tar.zst.sig and pacman must see that.
+		ln -s "$f" "$TEST/repo/${f%.tar.zst}"
+		ln -s "$f.sig" "$TEST/repo/${f%.tar.zst}.sig"
+	done
+else
+	echo "==> building the signed database"
+	( cd "$TEST/repo" && repo-add --sign --key "$COLONY_SIGNING_KEY" --new --quiet \
+		colony.db.tar.zst ./*.pkg.tar.zst )
+fi
 
 echo "==> isolated keyring, trusting nothing to start with"
 $SUDO pacman-key --gpgdir "$TEST/gnupg" --init
@@ -148,23 +165,47 @@ $SUDO pacman-key --gpgdir "$TEST/gnupg" --add "$TEST/foreign.gpg"
 refused "a database signed by a foreign key" pacman.conf db-foreign
 
 echo "==> the installer's offline repository"
-"$ROOT/iso/offline-repo.sh" "$TEST/offline" colony-mirrorlist
+if [[ -n $PREBUILT ]]; then
+	cp -r "$OUT/offline" "$TEST/offline" || fail "repo/out has no offline repository"
+else
+	"$ROOT/iso/offline-repo.sh" "$TEST/offline" colony-mirrorlist
+fi
 # The installer's own pacman.conf, verbatim except for where its Server points.
 server="Server = file://$TEST/offline"
 sed "s|^Server = file:///usr/share/colony/offline-repo$|$server|" \
 	"$ROOT/iso/install/airootfs/usr/share/colony/offline-repo/pacman.conf" > "$TEST/offline.conf"
 grep -qxF "$server" "$TEST/offline.conf" \
 	|| fail "the offline pacman.conf no longer serves /usr/share/colony/offline-repo"
-# Into the root the first case installed, with its database, as on a target
-# that already has packages: the stand-in is reinstalled over itself.
 pac offline.conf db -Sy --noconfirm
-pac offline.conf db -S --noconfirm --noscriptlet colony-mirrorlist
+if [[ -n $PREBUILT ]]; then
+	# The firewall packages themselves, which need a whole system to install
+	# into: downloaded and verified only. The release workflow's VM test
+	# installs them from the image.
+	mapfile -t offline < <(pac offline.conf db -Slq colony-offline)
+	(( ${#offline[@]} )) || fail "the offline database lists no package"
+	pac offline.conf db -Swdd --noconfirm "${offline[@]}"
+else
+	# Into the root the first case installed, with its database, as on a target
+	# that already has packages: the stand-in is reinstalled over itself.
+	pac offline.conf db -S --noconfirm --noscriptlet colony-mirrorlist
+fi
 
 echo "==> the offline database without its signature"
 rm -f "$TEST/offline/colony-offline.db.sig" "$TEST/offline/colony-offline.db.tar.zst.sig"
 refused "an unsigned offline database" offline.conf db-offline-unsigned
 
 echo "==> an offline package without its signature"
+if [[ -n $PREBUILT ]]; then
+	# This case signs a database of its own, and the release workflow holds no
+	# key where it runs this. It proves the installer's pacman.conf, not the
+	# artefacts, and the run without COLONY_PREBUILT_DB in CI covers it.
+	echo "    skipped: COLONY_PREBUILT_DB has no key to sign a database with"
+	echo
+	echo "PASS - the [colony] database and packages about to be published verify,"
+	echo "       an unsigned or foreign-signed database is refused, and the offline"
+	echo "       repository verifies and is refused once its database is unsigned."
+	exit 0
+fi
 # The stand-in without its .sig, under a database the Colony key signs: only the
 # package's own signature is missing.
 mkdir "$TEST/offline-nosig"

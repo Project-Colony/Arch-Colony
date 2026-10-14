@@ -28,6 +28,17 @@ paquets qui dépendent de ce qui s'y trouvait par hasard. `devtools` existe pour
 soit vérifiable, ce qui est circulaire. Le mécanisme employé par `archlinux-keyring` est la
 référence à suivre.
 
+## Publishing
+
+Nothing here publishes. Releases are built, signed and published by
+[`.github/workflows/release.yml`](../.github/workflows/release.yml): the signing subkey
+lives only in that workflow's `release` environment, and the certification key never
+leaves its owner. See [ADR-0010](../docs/decisions/0010-signing-in-ci.md).
+
+`build.sh` builds and signs packages locally, for testing an image with
+`iso/build.sh`. `genkey.sh` is the offline tool that created the key, kept for the
+record and for a key rotation; it never runs in CI.
+
 ## Jalon
 
 C'est [J0](../docs/feuille-de-route.md#j0--le-dépôt-existe---fait-le-2026-08-19), le premier, précisément parce

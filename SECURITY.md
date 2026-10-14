@@ -10,7 +10,7 @@ security reports are handled before anything else.
 
 | What | Supported |
 | --- | --- |
-| The latest ISO image (the newest `iso-YYYY.MM.DD` release) | yes |
+| The latest ISO image (the newest release: `vX.Y.Z` from 2026-10, `iso-YYYY.MM.DD` before) | yes |
 | The rolling `[colony]` repository (the `repo` release) | yes |
 | Older ISO images | no |
 
@@ -49,8 +49,9 @@ In scope:
   firewall defaults (`colony-firewall-defaults`) and the two downstream
   Calamares patches.
 - **The `colony-keyring` trust root**: the key it installs, its
-  `colony-trusted` and `colony-revoked` lists, and the build, signing and
-  publishing scripts under `repo/` and `iso/`.
+  `colony-trusted` and `colony-revoked` lists, the release workflow
+  `.github/workflows/release.yml` that builds, signs and publishes, and the
+  scripts under `repo/`, `iso/` and `tools/` it runs.
 - **ISO images**: the archiso profiles under `iso/`, the live session and its
   boot configuration.
 - **The Calamares installer configuration** under
@@ -93,15 +94,19 @@ accepts an unsigned database. `colonyctl status` (from `colonyctl`
 The primary key only certifies. Signatures are made by a separate signing
 subkey (RSA 4096, expiring 2029-08-18), so that subkey can be replaced without
 asking anyone to trust a new key. The reasoning is in
-[ADR-0008](docs/decisions/0008-chaine-de-confiance.md).
+[ADR-0008](docs/decisions/0008-chaine-de-confiance.md). Only that subkey is in
+CI, as the `ARCH_COLONY_GPG_SIGNING_SUBKEY` secret of the `release`
+environment, used by two jobs that build nothing; see
+[ADR-0010](docs/decisions/0010-signing-in-ci.md).
 
 ### If the signing subkey is compromised
 
 1. Revoke the subkey with the primary key and add a new signing subkey.
 2. Release a new `colony-keyring` whose `colony.gpg` carries the revocation
    and the new subkey.
-3. Re-sign every package and the database with the new subkey and republish
-   `[colony]`, then rebuild, sign and republish the current ISO.
+3. Replace the `ARCH_COLONY_GPG_SIGNING_SUBKEY` secret with the new subkey,
+   then bump `pkgrel` of every package and release: the release workflow
+   rebuilds and signs every package, the database and a new image.
 4. Publish a security advisory that names the exposure window, the new subkey
    fingerprint, and the commands to import the updated `colony.gpg` with
    `pacman-key --add`. A machine cannot verify packages signed by a subkey it

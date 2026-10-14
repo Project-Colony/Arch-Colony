@@ -4,7 +4,9 @@
 #   ./repo/build.sh                     build everything under packages/
 #   ./repo/build.sh colony-mirrorlist   build one
 #
-# Output lands in repo/out/, ready for repo/publish.sh.
+# Output lands in repo/out/, for iso/build.sh and tools/test-repo.sh. This is
+# the local path, signed with the key on this machine; releases are built and
+# signed by .github/workflows/release.yml (docs/decisions/0010-signing-in-ci.md).
 
 set -euo pipefail
 
@@ -92,9 +94,9 @@ for p in "${pkgs[@]}"; do
 
 	for f in "${built[@]}"; do
 		# Drop older builds of the same package first. Without this a rebuild leaves
-		# both versions in repo/out, repo-add indexes what it finds, and publish.sh
-		# uploads *.pkg.tar.zst unfiltered - so the stale build ships too. Observed
-		# after bumping colony-mirrorlist to pkgrel 2.
+		# both versions in repo/out and repo-add indexes what it finds, so the stale
+		# build ends up in the repository too. Observed after bumping
+		# colony-mirrorlist to pkgrel 2.
 		#
 		# The stem is the filename minus pkgver-pkgrel-arch, which is unambiguous
 		# because an Arch pkgver may not contain a dash.
