@@ -157,7 +157,8 @@ jobs:
           # a git error must fail the job, not read as "nothing changed".
           changed=$(git diff --name-only "$BASE" HEAD -- packages/)
           dirs=()
-          for name in $(cut -d/ -f2 <<<"$changed" | sort -u); do
+          mapfile -t names < <(cut -d/ -f2 <<<"$changed" | sort -u)
+          for name in "${names[@]}"; do
             [[ -f packages/$name/PKGBUILD ]] && dirs+=("packages/$name")
           done
           if (( ! ${#dirs[@]} )); then
@@ -174,7 +175,8 @@ jobs:
           # depend on: no repository this container knows serves them.
           declare -A dir_of=()
           for srcinfo in packages/*/.SRCINFO; do
-            for name in $(sed -n 's/^pkgname = //p' "$srcinfo"); do
+            mapfile -t names < <(sed -n 's/^pkgname = //p' "$srcinfo")
+            for name in "${names[@]}"; do
               dir_of[$name]=${srcinfo%/.SRCINFO}
             done
           done
@@ -182,11 +184,12 @@ jobs:
           declare -A built=()
           failed=0
           build() {
-            local dir=$1 name=${1#packages/} dep need out
+            local dir=$1 name=${1#packages/} dep need out deps
             [[ -z ${built[$dir]:-} ]] || return 0
             built[$dir]=1
 
-            for dep in $(sed -nE 's/^\t(make|check)?depends = ([^<>=]+).*/\2/p' "$dir/.SRCINFO" | sort -u); do
+            mapfile -t deps < <(sed -nE 's/^\t(make|check)?depends = ([^<>=]+).*/\2/p' "$dir/.SRCINFO" | sort -u)
+            for dep in "${deps[@]}"; do
               need=${dir_of[$dep]:-}
               [[ -n $need && $need != "$dir" ]] || continue
               build "$need"
