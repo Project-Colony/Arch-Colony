@@ -52,8 +52,8 @@ live image and an installed system carry (qemu-guest-agent, started by udev when
 the virtio port below appears), so they read the guest without a screen.
 
 Needs qemu-desktop, edk2-ovmf and pyside6 (for the PPM -> PNG conversion).
-Only `shot` needs pyside6, and qemu-base with qemu-hw-display-virtio-vga is
-enough for the rest.
+Only `shot` needs pyside6, and qemu-base with qemu-hw-display-virtio-gpu and
+qemu-hw-display-virtio-vga is enough for the rest.
 
 `smoke` is the release workflow's boot test and needs neither a screen nor Qt.
 It boots the kernel, initramfs and command line of the image's own default
@@ -269,6 +269,17 @@ def installed(offline):
     qemu(["-boot", "c"], offline)
 
 
+def running(pid):
+    """Whether pid is alive. A zombie counts as gone: in a container whose init
+    reaps nothing, as in CI, an exited -daemonize QEMU stays one."""
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+    except FileNotFoundError:
+        return False
+    # The state follows the command name, which may hold spaces and parentheses.
+    return stat.rpartition(")")[2].split()[0] != "Z"
+
+
 def stop():
     if PIDFILE.is_file():
         pid = PIDFILE.read_text().strip()
@@ -456,7 +467,7 @@ def autoinstall():
     pid = int(PIDFILE.read_text())
     monitor("system_powerdown")
     try:
-        wait_until("the live system to power off", lambda: not Path(f"/proc/{pid}").exists(), 300, 2)
+        wait_until("the live system to power off", lambda: not running(pid), 300, 2)
     finally:
         stop()
 

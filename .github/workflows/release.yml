@@ -606,7 +606,11 @@ jobs:
       - name: Install tools
         run: |
           # virtio-vga: the installer's screen, as tools/run-iso.sh shows it.
-          pacman -Syu --noconfirm --needed git python qemu-base qemu-hw-display-virtio-vga edk2-ovmf libarchive
+          # It needs the virtio-gpu module too, which its package does not pull
+          # in: without it QEMU crashes at start, and -daemonize hides that as a
+          # bare exit status 1.
+          pacman -Syu --noconfirm --needed git python qemu-base qemu-hw-display-virtio-gpu \
+            qemu-hw-display-virtio-vga edk2-ovmf libarchive
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
