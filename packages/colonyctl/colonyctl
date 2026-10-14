@@ -23,6 +23,19 @@ set -uo pipefail
 PROGRAM=${0##*/}
 VERSION=@VERSION@
 
+# Every message comes from a string table, in English or French after LANG. The
+# English one is read first, so a French string that is missing shows in
+# English rather than as nothing. tools/check-i18n.py keeps the keys identical.
+STRINGS=${COLONYCTL_STRINGS:-/usr/share/colonyctl/strings}
+# shellcheck source=packages/colonyctl/en.sh
+. "$STRINGS/en.sh"
+case ${LC_ALL:-${LC_MESSAGES:-${LANG:-}}} in
+	fr*)
+		# shellcheck source=packages/colonyctl/fr.sh
+		. "$STRINGS/fr.sh"
+		;;
+esac
+
 # NO_COLOR is honoured, and so is a non-tty: this gets piped into bug reports.
 if [[ -t 1 && -z ${NO_COLOR:-} ]]; then
 	B=$'\e[1m'; DIM=$'\e[2m'; OK=$'\e[32m'; WARN=$'\e[33m'; BAD=$'\e[31m'; R=$'\e[0m'
@@ -31,6 +44,8 @@ else
 fi
 
 die() { printf '%s: %s\n' "$PROGRAM" "$*" >&2; exit 1; }
+# shellcheck disable=SC2059 # the format is a translated message
+fmt() { local f=$1; shift; printf "$f" "$@"; }
 
 # Re-exec through sudo rather than requiring the whole command to be run as
 # root: it keeps $HOME and the user's paru configuration intact.
@@ -38,25 +53,30 @@ as_root() {
 	if (( EUID == 0 )); then
 		"$@"
 	else
-		command -v sudo >/dev/null || die "not root and sudo is not installed"
+		command -v sudo >/dev/null || die "$msg_no_sudo"
 		sudo "$@"
 	fi
 }
 
-field() { printf '  %-22s %s\n' "$1" "$2"; }
+# Padded by characters, not bytes, and wide enough for the French labels: printf
+# would count an accented letter twice and pull its value one column left.
+field() {
+	local pad=$(( 31 - ${#1} ))
+	(( pad > 0 )) || pad=1
+	printf '  %s%*s%s\n' "$1" "$pad" '' "$2"
+}
 
 usage() {
 	cat <<EOF
-${B}$PROGRAM${R} - Arch Colony system control
+${B}$PROGRAM${R} - $msg_usage_title
 
-  ${B}$PROGRAM update${R} [--aur]     update the system (pacman -Syu)
-  ${B}$PROGRAM status${R}             what this machine is running, and what is protecting it
-  ${B}$PROGRAM firewall${R} <args…>   Colony Firewall Control (cfc); changes need sudo
+  ${B}$PROGRAM update${R} [--aur]     $msg_usage_update
+  ${B}$PROGRAM status${R}             $msg_usage_status
+  ${B}$PROGRAM firewall${R} <args…>   $msg_usage_firewall
   ${B}$PROGRAM version${R}
   ${B}$PROGRAM help${R}
 
-${DIM}pacman still works, and is not going anywhere. This is a front door, not a
-gate: [colony] is an ordinary pacman repository.${R}
+${DIM}$msg_usage_note${R}
 EOF
 }
 
@@ -67,9 +87,9 @@ cmd_update() {
 			--aur) aur=1 ;;
 			-h|--help) usage; return 0 ;;
 			-S*|-R*|-Q*|-U*|-y*|-u*)
-				die "$1 is pacman's grammar, not this tool's. Use '$PROGRAM update', or pacman directly."
+				die "$(fmt "$msg_pacman_option" "$1" "$PROGRAM")"
 				;;
-			*) die "unknown option '$1' - see '$PROGRAM help'" ;;
+			*) die "$(fmt "$msg_unknown_option" "$1" "$PROGRAM")" ;;
 		esac
 		shift
 	done
@@ -81,7 +101,7 @@ cmd_update() {
 	as_root pacman -Syu || return $?
 
 	if (( aur )); then
-		command -v paru >/dev/null || die "--aur needs paru: colonyctl update, then pacman -S paru"
+		command -v paru >/dev/null || die "$msg_aur_needs_paru"
 		echo
 		echo "${B}==>${R} paru -Sua"
 		# Not as_root: paru builds as the invoking user and asks for privilege
@@ -92,24 +112,24 @@ cmd_update() {
 
 cmd_status() {
 	local v
-	echo "${B}system${R}"
+	echo "${B}$msg_section_system${R}"
 	if [[ -r /etc/os-release ]]; then
 		# shellcheck disable=SC1091
 		v=$(. /etc/os-release && printf '%s' "${PRETTY_NAME:-$NAME}")
-		field "distribution" "$v"
+		field "$msg_distribution" "$v"
 	fi
-	field "kernel" "$(uname -r)"
+	field "$msg_kernel" "$(uname -r)"
 
 	echo
-	echo "${B}packages${R}"
+	echo "${B}$msg_section_packages${R}"
 	if pacman-conf --repo-list 2>/dev/null | grep -qx colony; then
-		field "[colony]" "${OK}configured${R}"
+		field "[colony]" "${OK}$msg_configured${R}"
 		# Reachability, not just configuration. A declared repository that
 		# cannot be synchronised breaks every pacman -Syu on the machine, so it
 		# is worth saying out loud before the user discovers it mid-upgrade.
 		local server
 		server=$(pacman-conf --repo=colony Server 2>/dev/null | head -n1)
-		[[ -n $server ]] && field "server" "$server"
+		[[ -n $server ]] && field "$msg_server" "$server"
 		# Whether a colony.db served without its signature would be refused.
 		# pacman-conf prints nothing for a section without its own SigLevel,
 		# so fall back to [options] as pacman does - and the [options] that
@@ -119,39 +139,39 @@ cmd_status() {
 		sig=$(pacman-conf --repo=colony SigLevel 2>/dev/null)
 		[[ -n $sig ]] || sig=$(pacman-conf SigLevel 2>/dev/null)
 		if grep -qx DatabaseRequired <<<"$sig"; then
-			field "database signature" "${OK}required${R}"
+			field "$msg_db_signature" "${OK}$msg_required${R}"
 		else
-			field "database signature" "${BAD}not required${R} - add 'SigLevel = Required DatabaseRequired' under [colony] in /etc/pacman.conf"
+			field "$msg_db_signature" "${BAD}$msg_not_required${R}"
 		fi
 	else
-		field "[colony]" "${WARN}not configured${R} - Colony packages will not update"
+		field "[colony]" "${WARN}$msg_not_configured${R}"
 	fi
 	local n
 	n=$(pacman -Qq 2>/dev/null | wc -l)
-	field "installed" "$n packages"
+	field "$msg_installed" "$(fmt "$msg_package_count" "$n")"
 
 	echo
-	echo "${B}enforcement${R}"
+	echo "${B}$msg_section_enforcement${R}"
 	# The list the kernel actually has, not the one we hoped for.
 	if [[ -r /sys/kernel/security/lsm ]]; then
-		field "kernel LSMs" "$(< /sys/kernel/security/lsm)"
+		field "$msg_kernel_lsms" "$(< /sys/kernel/security/lsm)"
 	fi
 	# Written out rather than as `test && field || field`: that chain quietly
 	# runs the second branch whenever the first command fails for its own
 	# reasons, which is a trap worth not laying in a status display.
 	if [[ -d /sys/kernel/security/apparmor ]]; then
-		field "AppArmor" "${OK}active${R}"
+		field "AppArmor" "${OK}$msg_active${R}"
 	else
-		field "AppArmor" "${DIM}not active${R}"
+		field "AppArmor" "${DIM}$msg_not_active${R}"
 	fi
 	if [[ -d /sys/fs/selinux ]]; then
-		field "SELinux" "${OK}active${R}"
+		field "SELinux" "${OK}$msg_active${R}"
 	else
-		field "SELinux" "${DIM}not active${R}"
+		field "SELinux" "${DIM}$msg_not_active${R}"
 	fi
 
 	echo
-	echo "${B}session${R}"
+	echo "${B}$msg_section_session${R}"
 	# Added because diagnosing "I picked a desktop and got a text console"
 	# otherwise means typing a wall of systemctl into a VM with no clipboard.
 	# Everything here is one line of output somebody would otherwise have to ask
@@ -159,9 +179,9 @@ cmd_status() {
 	local target
 	target=$(systemctl get-default 2>/dev/null)
 	if [[ $target == graphical.target ]]; then
-		field "default target" "${OK}$target${R}"
+		field "$msg_default_target" "${OK}$target${R}"
 	else
-		field "default target" "${BAD}${target:-unknown}${R} - no greeter will start"
+		field "$msg_default_target" "${BAD}${target:-$msg_unknown}${R} - $msg_no_greeter_will_start"
 	fi
 	# The symlink is the truth: `systemctl enable` on a display manager rewrites
 	# it, so with two desktops installed it names whichever won.
@@ -169,52 +189,52 @@ cmd_status() {
 		local dm
 		dm=$(basename "$(readlink /etc/systemd/system/display-manager.service)")
 		if systemctl is-active --quiet display-manager 2>/dev/null; then
-			field "display manager" "${OK}$dm${R}, running"
+			field "$msg_display_manager" "${OK}$(fmt "$msg_dm_running" "$dm")${R}"
 		else
-			field "display manager" "${WARN}$dm${R}, enabled but not running"
+			field "$msg_display_manager" "${WARN}$(fmt "$msg_dm_not_running" "$dm")${R}"
 		fi
 	else
-		field "display manager" "${BAD}none enabled${R} - the machine boots to a console"
+		field "$msg_display_manager" "${BAD}$msg_dm_none${R}"
 	fi
 	local greeters
 	greeters=$(pacman -Qq 2>/dev/null | grep -xE 'sddm|gdm|lightdm|greetd|ly|cosmic-greeter|plasma-login-manager' | tr '\n' ' ')
-	field "greeters installed" "${greeters:-${DIM}none${R}}"
+	field "$msg_greeters_installed" "${greeters:-${DIM}$msg_none${R}}"
 	local failed
-	failed=$(systemctl --failed --no-legend --no-pager 2>/dev/null | awk '{print $1}' | tr '\n' ' ')
-	[[ -n $failed ]] && field "failed units" "${BAD}$failed${R}"
+	failed=$(systemctl --failed --no-legend --no-pager --plain 2>/dev/null | awk '{print $1}' | tr '\n' ' ')
+	[[ -n $failed ]] && field "$msg_failed_units" "${BAD}$failed${R}"
 
 	echo
-	echo "${B}firewall${R}"
+	echo "${B}$msg_section_firewall${R}"
 	if ! command -v cfc >/dev/null; then
 		# colony-firewall-defaults, not -control: the firewall package alone
 		# enables nothing.
-		field "Colony Firewall" "${DIM}not installed${R} - pacman -S colony-firewall-defaults"
+		field "Colony Firewall" "${DIM}$msg_firewall_not_installed${R}"
 		return 0
 	fi
 	local daemon=0
 	if systemctl is-active --quiet colony-firewalld.service 2>/dev/null; then
 		daemon=1
-		field "daemon" "${OK}running${R}"
+		field "$msg_daemon" "${OK}$msg_running${R}"
 	else
-		field "daemon" "${WARN}stopped${R}"
+		field "$msg_daemon" "${WARN}$msg_stopped${R}"
 	fi
 	# Since CFC 0.7.0 the table loads on its own, before the daemon, and stays
 	# when the daemon dies. Loaded with no daemon behind it, it refuses every new
 	# connection outside loopback without a prompt to say why.
 	if ! systemctl is-active --quiet colony-firewall-nft.service 2>/dev/null; then
-		field "filtering table" "${WARN}not loaded${R}"
+		field "$msg_filtering_table" "${WARN}$msg_not_loaded${R}"
 	elif (( daemon )); then
-		field "filtering table" "${OK}loaded${R}"
+		field "$msg_filtering_table" "${OK}$msg_loaded${R}"
 	else
-		field "filtering table" "${BAD}loaded, no daemon${R} - new connections are refused"
+		field "$msg_filtering_table" "${BAD}$msg_loaded_no_daemon${R}"
 	fi
 	# The kernel object is the whole reason [colony] ships its own build of CFC:
 	# the AUR package deliberately omits it, and a daemon without it filters on
 	# without its strongest layer and says so only in a log line.
 	if [[ -f /usr/lib/colony-firewall/cfc-ebpf.o ]]; then
-		field "kernel object" "${OK}present${R}"
+		field "$msg_kernel_object" "${OK}$msg_present${R}"
 	else
-		field "kernel object" "${BAD}missing${R} - enforcement cannot outlive the daemon"
+		field "$msg_kernel_object" "${BAD}$msg_missing_object${R}"
 	fi
 	# cfc knows its own enforcement level; ask it rather than guessing.
 	echo
@@ -229,15 +249,15 @@ main() {
 		status)          cmd_status "$@" ;;
 		firewall)
 			command -v cfc >/dev/null \
-				|| die "colony-firewall-control is not installed"
+				|| die "$msg_no_firewall"
 			exec cfc "$@"
 			;;
 		version|--version) printf '%s %s\n' "$PROGRAM" "$VERSION" ;;
 		help|-h|--help)  usage ;;
 		-*)
-			die "'$verb' looks like pacman's grammar. This tool takes verbs - see '$PROGRAM help'."
+			die "$(fmt "$msg_pacman_verb" "$verb" "$PROGRAM")"
 			;;
-		*) die "unknown command '$verb' - see '$PROGRAM help'" ;;
+		*) die "$(fmt "$msg_unknown_command" "$verb" "$PROGRAM")" ;;
 	esac
 }
 

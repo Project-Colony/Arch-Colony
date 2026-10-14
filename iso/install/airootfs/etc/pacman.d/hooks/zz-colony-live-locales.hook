@@ -1,0 +1,22 @@
+# remove from airootfs!
+#
+# The two languages the live session speaks, generated straight into the image's
+# locale archive. Not through /etc/locale.gen: the installer copies this image
+# to the target and edits that file there, uncommenting the locale the user
+# picked, which only works while it still lists every locale, as glibc ships it.
+# The installer's own locale-gen run then rebuilds the archive on the target
+# from scratch, so these two do not linger there.
+#
+# After glibc's own hook, which empties the archive: hooks run in file name order.
+
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = glibc
+
+[Action]
+Description = Generating the live session's English and French locales...
+When = PostTransaction
+Depends = glibc
+Exec = /bin/sh -c "localedef -i en_US -c -f UTF-8 -A /usr/share/locale/locale.alias en_US.UTF-8 && localedef -i fr_FR -c -f UTF-8 -A /usr/share/locale/locale.alias fr_FR.UTF-8"

@@ -7,6 +7,23 @@ Presentation
 {
     id: presentation
 
+    // The slideshow's text, one object per language with the same keys;
+    // tools/check-i18n.py fails CI when they differ. Calamares starts in the
+    // boot entry's language (colony.lang, through LANG), and that is what
+    // Qt.locale() reports here: Calamares never changes the default QLocale, so
+    // a language picked later on the welcome page does not reach this view.
+    readonly property var en: ({
+        tagline: "Arch Linux: the same repositories, the same mirrors, the same update pace.<br/>" +
+                 "Plus one layer: a hardened kernel, an application firewall, " +
+                 "and the programs of the Colony ecosystem."
+    })
+    readonly property var fr: ({
+        tagline: "Arch Linux : mêmes dépôts, mêmes miroirs, même rythme de mise à jour.<br/>" +
+                 "Plus une couche : noyau durci, pare-feu applicatif, " +
+                 "et les programmes de l'écosystème Colony."
+    })
+    readonly property var strings: Qt.locale().name.substring(0, 2) === "fr" ? fr : en
+
     // The view is larger than a Slide, and its default clear colour is white:
     // seen as a white frame around the first themed image (2026-09-05). The
     // ground belongs on the root, which Calamares sizes to the whole view.
@@ -57,9 +74,7 @@ Presentation
             color: "@text_secondary@"
             font.pixelSize: 15
             lineHeight: 1.25
-            text: "Arch Linux : mêmes dépôts, mêmes miroirs, même rythme de mise à jour.<br/>" +
-                  "Plus une couche : noyau durci, pare-feu applicatif, " +
-                  "et les programmes de l'écosystème Colony."
+            text: presentation.strings.tagline
         }
     }
 }

@@ -13,9 +13,11 @@ and on every push to `main`, in an `archlinux:base-devel` container.
 
 | Check | Run it locally with |
 |---|---|
-| shellcheck on every `*.sh`, `colonyctl` and the install scriptlets, `zsh -n` on the live session's `.zlogin`, `py_compile` on `tools/*.py` | the same commands |
+| shellcheck on every `*.sh`, `colonyctl`, the live session's `colony-*` scripts and the install scriptlets, `zsh -n` on the live session's `.zlogin`, `py_compile` on `tools/*.py` | the same commands |
 | [ADR-0002](../docs/decisions/0002-regle-de-non-recouvrement.md): nothing in `packages/` shadows `[core]`, `[extra]` or `[multilib]` | `tools/check-shadowing.sh` |
 | The `colony-mirrorlist` SigLevel migration | `tools/test-mirrorlist-migration.sh` |
+| Every user-visible string has an English and a French version, key for key: `config/*.yaml` pairs, the `en.sh`/`fr.sh` string tables, the slideshow's `en`/`fr` objects | `tools/check-i18n.py` |
+| `colony-live-setup` turns each boot entry's `colony.*` parameters into the live session's locale, message of the day, keyboard layout and screen reader voice | `tools/test-live-setup.sh` |
 | The signed `[colony]` chain end to end, and the installer's offline firewall repository through its own `pacman.conf`, signed in CI with a throwaway key | `tools/test-repo.sh` |
 | The installer and boot menu templates resolve in every palette of the pinned `themes.json`, with no placeholder left in the boot menu, the package trees generate from `config/netinstall.yaml` and the pinned archinstall, and `colony-release` reads the same pinned palette | `iso/fetch-inputs.sh DIR`, then `tools/resolve-theme.py` and `tools/gen-netinstall.py --archinstall DIR/archinstall --out OUT` |
 | No boot menu entry presents the image as Arch Linux | `grep -rn 'Arch Linux' iso/*/syslinux iso/*/grub iso/*/efiboot` |

@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Refuse to start an installation that cannot finish: run by the installer
+# before it partitions anything (shellprocess_preflight.conf says why).
+#
+# Its message is the installer's error dialog, so it is in the boot language,
+# from the live session's string table.
+
+set -uo pipefail
+
+[[ -f /run/archiso/bootmnt/colony/x86_64/airootfs.sfs ]] && exit 0
+
+# shellcheck source=iso/install/airootfs/usr/share/colony/strings/en.sh
+. /usr/share/colony/strings/en.sh
+if [[ ${LANG:-} == fr* ]]; then
+	# shellcheck source=iso/install/airootfs/usr/share/colony/strings/fr.sh
+	. /usr/share/colony/strings/fr.sh
+fi
+printf '%s\n' "$preflight_unusable"
+exit 1

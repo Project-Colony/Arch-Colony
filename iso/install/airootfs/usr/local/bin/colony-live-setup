@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# Apply the boot entry's language to the live session, before anyone logs in.
+# Runs once per boot, from colony-live-setup.service.
+#
+# The boot entries set it on the kernel command line, and it can be edited at
+# the boot menu (press e):
+#
+#   colony.lang=en|fr   the language of the live console, the installer and its
+#                       package page. English when absent or unknown.
+#
+# The console keymap comes from systemd's own vconsole.keymap=, which the French
+# entries set too: systemd applies it without any help from here.
+#
+# Everything is written to the running session only. The installer copies the
+# squashfs, not this session, so none of it reaches the installed machine; the
+# locale, keymap and voice there are what the installer's pages chose.
+#
+# COLONY_ROOT and COLONY_CMDLINE exist for tools/test-live-setup.sh.
+
+set -euo pipefail
+
+root=${COLONY_ROOT:-}
+read -ra params < "${COLONY_CMDLINE:-/proc/cmdline}"
+
+lang=en
+for param in "${params[@]}"; do
+	case $param in
+		colony.lang=fr) lang=fr ;;
+		colony.lang=*) lang=en ;;
+	esac
+done
+
+# shellcheck source=iso/install/airootfs/usr/share/colony/strings/en.sh
+. "$root/usr/share/colony/strings/en.sh"
+if [[ $lang == fr ]]; then
+	# shellcheck source=iso/install/airootfs/usr/share/colony/strings/fr.sh
+	. "$root/usr/share/colony/strings/fr.sh"
+fi
+
+# Both locales are generated into the image by
+# /etc/pacman.d/hooks/zz-colony-live-locales.hook. The login shell reads LANG
+# from here through /etc/profile.d/locale.sh, and hands it to Calamares, which
+# starts in that language.
+case $lang in
+	fr) printf 'LANG=fr_FR.UTF-8\n' ;;
+	*)  printf 'LANG=en_US.UTF-8\n' ;;
+esac > "$root/etc/locale.conf"
+
+printf '%s\n' "$motd" > "$root/etc/motd"
+
+if [[ $lang == fr ]]; then
+	# The installer runs in cage, whose keyboard is libxkbcommon's default
+	# layout rather than the console's keymap. pam_env hands this to the login
+	# on tty1 that starts it.
+	printf 'XKB_DEFAULT_LAYOUT=fr\n' >> "$root/etc/environment"
+	# The screen reader speaks the language it reads. espeakup.service takes
+	# its voice from this file, through a drop-in in this image.
+	mkdir -p "$root/run/colony"
+	printf 'default_voice=fr\n' > "$root/run/colony/espeakup.env"
+fi

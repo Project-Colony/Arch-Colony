@@ -48,19 +48,14 @@ for unit in sddm gdm lightdm plasmalogin cosmic-greeter ly@tty1 greetd; do
 	[[ -L $ROOT/etc/systemd/system/display-manager.service ]] && exit 0
 done
 
-cat >&2 <<MSG
-
-This installation would boot to a text console.
-
-${#sessions[@]} graphical session(s) are installed and no login screen is. That
-happens when the "Écran de connexion" group was unticked on the software page:
-a desktop without one leaves you at a login: prompt that looks like a failure.
-
-Nothing here can be repaired without a greeter on the disk, so the install is
-stopped rather than finished into something unusable.
-
-Start the installer again and tick one under "Écran de connexion" - SDDM suits
-every desktop offered.
-
-MSG
+# The installer shows this in its error dialog, so it is in the boot language,
+# from the live session's string table.
+# shellcheck source=iso/install/airootfs/usr/share/colony/strings/en.sh
+. /usr/share/colony/strings/en.sh
+if [[ ${LANG:-} == fr* ]]; then
+	# shellcheck source=iso/install/airootfs/usr/share/colony/strings/fr.sh
+	. /usr/share/colony/strings/fr.sh
+fi
+# shellcheck disable=SC2059 # the format is the translated message
+printf "\n$verify_no_greeter\n\n" "${#sessions[@]}" >&2
 exit 1
