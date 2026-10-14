@@ -103,3 +103,8 @@ programme se fait dans son dépôt.
 ## Licence
 
 GPL-3.0-or-later, comme le reste de l'écosystème.
+
+One exception: [`tools/gen-netinstall.py`](tools/gen-netinstall.py) is GPL-3.0-only.
+Its desktop, greeter and graphics driver tables are ported from
+[archinstall](https://github.com/archlinux/archinstall), which is GPL-3.0-only, and so
+is the installer package tree it generates into the install image.
