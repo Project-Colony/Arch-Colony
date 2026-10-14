@@ -14,8 +14,9 @@
 # Then the installer's offline repository: iso/offline-repo.sh assembles it as
 # iso/build.sh does, with colony-mirrorlist standing in for the firewall packages
 # CI does not build here, and the pacman.conf the installer uses must install from
-# it and refuse it once its database signature is gone. With COLONY_PREBUILT_DB,
-# the one in repo/out/offline is tested instead.
+# it, refuse it once its database signature is gone, and refuse a package whose
+# own signature is gone. With COLONY_PREBUILT_DB, the one in repo/out/offline is
+# tested instead, without the last case.
 
 set -euo pipefail
 
@@ -193,10 +194,46 @@ echo "==> the offline database without its signature"
 rm -f "$TEST/offline/colony-offline.db.sig" "$TEST/offline/colony-offline.db.tar.zst.sig"
 refused "an unsigned offline database" offline.conf db-offline-unsigned
 
+echo "==> an offline package without its signature"
+if [[ -n $PREBUILT ]]; then
+	# This case signs a database of its own, and the release workflow holds no
+	# key where it runs this. It proves the installer's pacman.conf, not the
+	# artefacts, and the run without COLONY_PREBUILT_DB in CI covers it.
+	echo "    skipped: COLONY_PREBUILT_DB has no key to sign a database with"
+	echo
+	echo "PASS - the [colony] database and packages about to be published verify,"
+	echo "       an unsigned or foreign-signed database is refused, and the offline"
+	echo "       repository verifies and is refused once its database is unsigned."
+	exit 0
+fi
+# The stand-in without its .sig, under a database the Colony key signs: only the
+# package's own signature is missing.
+mkdir "$TEST/offline-nosig"
+cp "$TEST"/offline/colony-mirrorlist-*.pkg.tar.zst "$TEST/offline-nosig/"
+( cd "$TEST/offline-nosig" && repo-add --sign --key "$COLONY_SIGNING_KEY" --new --quiet \
+	colony-offline.db.tar.zst ./*.pkg.tar.zst )
+sed "s|^Server = file://$TEST/offline\$|Server = file://$TEST/offline-nosig|" \
+	"$TEST/offline.conf" > "$TEST/offline-nosig.conf"
+grep -qxF "Server = file://$TEST/offline-nosig" "$TEST/offline-nosig.conf" \
+	|| fail "could not point the offline pacman.conf at $TEST/offline-nosig"
+# The control: the same files, with package signatures optional.
+sed 's/^SigLevel = Required DatabaseRequired$/SigLevel = PackageOptional DatabaseRequired/' \
+	"$TEST/offline-nosig.conf" > "$TEST/offline-nosig-control.conf"
+# The copy and signature the installs above cached would stand in for what is
+# served. Both cases reinstall into the root the first case installed, with its
+# database, and -yy because that database already synced colony-offline.
+$SUDO rm -f "$TEST"/cache/colony-mirrorlist-*
+echo "    control, with package signatures optional:"
+pac offline-nosig-control.conf db -Syy --noconfirm --noscriptlet colony-mirrorlist 2>&1 | sed 's/^/    /' \
+	|| fail "the control did not install, so the refusal below would prove nothing"
+echo "    through the installer's pacman.conf:"
+refused "an offline package without its signature" offline-nosig.conf db -y --noscriptlet colony-mirrorlist
+
 echo
 echo "PASS - signed database verified, signed package verified, trust established"
 echo "       from colony-keyring alone; an unsigned database was refused by the"
 echo "       SigLevel of the shipped [colony] stanza, and one signed by a foreign"
 echo "       key was refused because colony-keyring does not vouch for that key."
 echo "       The installer's offline repository installed through its own"
-echo "       pacman.conf, and was refused once its database was unsigned."
+echo "       pacman.conf, and was refused once its database was unsigned or a"
+echo "       package was."
