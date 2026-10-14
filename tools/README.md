@@ -18,7 +18,7 @@ and on every push to `main`, in an `archlinux:base-devel` container.
 | Which packages a release builds, and that a version older than the published one is refused | `tools/test-pending-packages.sh` |
 | [ADR-0002](../docs/decisions/0002-regle-de-non-recouvrement.md): nothing in `packages/` shadows `[core]`, `[extra]` or `[multilib]` | `tools/check-shadowing.sh` |
 | The `colony-mirrorlist` SigLevel migration | `tools/test-mirrorlist-migration.sh` |
-| The signed `[colony]` chain end to end, and the installer's offline firewall repository through its own `pacman.conf`, signed in CI with a throwaway key | `tools/test-repo.sh` |
+| The signed `[colony]` chain end to end, and the installer's offline firewall repository through its own `pacman.conf`, which refuses an unsigned database or package, signed in CI with a throwaway key | `tools/test-repo.sh` |
 | The installer templates resolve in every palette of the pinned `themes.json`, and the package tree generates from the pinned archinstall | `iso/fetch-inputs.sh DIR`, then `tools/resolve-theme.py` and `tools/gen-netinstall.py` |
 | Each package the change touches builds with `makepkg -s`, passes `namcap` without errors, and its `.SRCINFO` equals `makepkg --printsrcinfo` | `makepkg --printsrcinfo > .SRCINFO` |
 
@@ -35,14 +35,15 @@ run, signed with a throwaway key.
 | Step | Script |
 |---|---|
 | Build only what is newer than what `[colony]` serves; refuse a downgrade | `tools/pending-packages.sh` |
-| The `[colony]` trust chain and the installer's offline repository, on the very databases about to be published | `COLONY_PREBUILT_DB=1 tools/test-repo.sh` |
+| The `[colony]` trust chain and the installer's offline repository, on the very databases about to be published. It skips the unsigned package case, which signs a database of its own and so needs a key | `COLONY_PREBUILT_DB=1 tools/test-repo.sh` |
 | The image boots under KVM to a working live system, checked on its serial console | `tools/vm-headless.py smoke ISO` |
 | An offline install from the image, through the installer's own pages, boots with the firewall running | `tools/vm-headless.py autoinstall`, then `check-firewall` (below) |
 
 ## Driving an image in a VM
 
 [`vm-headless.py`](vm-headless.py) boots an image in QEMU with no window and drives it
-through the QEMU monitor and the guest agent. It needs KVM, and no key: `smoke` runs on
+through the QEMU monitor and the guest agent. It needs KVM, `edk2-ovmf` and `qemu-base` with
+`qemu-hw-display-virtio-gpu` and `qemu-hw-display-virtio-vga`, and no key: `smoke` runs on
 any image.
 
 The offline install path, which has to put the firewall in from the medium, as the
