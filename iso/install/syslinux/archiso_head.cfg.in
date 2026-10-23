@@ -1,0 +1,41 @@
+SERIAL 0 115200
+UI vesamenu.c32
+MENU TITLE Arch Colony
+# A colour, not an image: vesamenu fills the screen with it. Like every colour
+# below, it names a field of the Colony palette, and iso/build.sh fills it in
+# from themes.json through tools/resolve-theme.py. A palette value is #rrggbb,
+# which syslinux reads as fully opaque.
+MENU BACKGROUND @bg_primary@
+
+MENU WIDTH 78
+MENU MARGIN 4
+MENU ROWS 7
+MENU VSHIFT 10
+MENU TABMSGROW 14
+MENU CMDLINEROW 14
+MENU HELPMSGROW 16
+MENU HELPMSGENDROW 29
+
+# Refer to https://wiki.syslinux.org/wiki/index.php/Comboot/menu.c32
+# The ANSI attributes are for the serial console; vesamenu draws the colours.
+# Elements left out keep syslinux's built-in colours, so every element these
+# menus can show is listed.
+
+MENU COLOR screen       37;40     @text_secondary@ @bg_primary@  none
+MENU COLOR border       30;44     @border_subtle@  @bg_primary@  none
+MENU COLOR title        1;36;44   @accent_blue@    @bg_primary@  none
+MENU COLOR unsel        37;44     @text_secondary@ @bg_primary@  none
+MENU COLOR hotkey       1;37;44   @accent_blue@    @bg_primary@  none
+MENU COLOR sel          7;37;40   @text_primary@   @bg_selected@ none
+MENU COLOR hotsel       1;7;37;40 @accent_blue@    @bg_selected@ none
+MENU COLOR scrollbar    30;44     @border_subtle@  @bg_primary@  none
+MENU COLOR help         37;40     @text_secondary@ @bg_primary@  none
+MENU COLOR timeout_msg  37;40     @text_muted@     @bg_primary@  none
+MENU COLOR timeout      1;37;40   @text_primary@   @bg_primary@  none
+MENU COLOR msg07        37;40     @text_secondary@ @bg_primary@  none
+MENU COLOR tabmsg       31;40     @text_muted@     @bg_primary@  none
+MENU COLOR cmdmark      1;36;40   @accent_blue@    @bg_primary@  none
+MENU COLOR cmdline      37;40     @text_primary@   @bg_input@    none
+
+MENU CLEAR
+MENU IMMEDIATE

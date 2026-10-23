@@ -14,14 +14,14 @@ signés par Arch, à la vitesse d'Arch.
 
 ## Télécharger
 
-[**archcolony-2026.09.05-x86_64.iso**](https://github.com/Project-Colony/Arch-Colony/releases/tag/iso-2026.09.05) - 1,7 Go
+[**archcolony-2026.10.24-x86_64.iso**](https://github.com/Project-Colony/Arch-Colony/releases/tag/iso-2026.10.24) - 1,7 Go
 
 Vérifier avant de l'écrire sur quoi que ce soit. La somme de contrôle attrape un
 téléchargement corrompu ; c'est la signature qui dit que l'image vient bien de nous.
 
 ```sh
-gpg --verify archcolony-2026.09.05-x86_64.iso.sig archcolony-2026.09.05-x86_64.iso
-sha256sum -c archcolony-2026.09.05-x86_64.iso.sha256
+gpg --verify archcolony-2026.10.24-x86_64.iso.sig archcolony-2026.10.24-x86_64.iso
+sha256sum -c archcolony-2026.10.24-x86_64.iso.sha256
 ```
 
 La clé est celle du paquet `colony-keyring`, empreinte
@@ -187,3 +187,8 @@ own privacy policy in their repositories.
 ## Licence
 
 GPL-3.0-or-later, comme le reste de l'écosystème.
+
+One exception: [`tools/gen-netinstall.py`](tools/gen-netinstall.py) is GPL-3.0-only.
+Its desktop, greeter and graphics driver tables are ported from
+[archinstall](https://github.com/archlinux/archinstall), which is GPL-3.0-only, and so
+is the installer package tree it generates into the install image.

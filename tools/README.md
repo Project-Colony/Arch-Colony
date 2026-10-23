@@ -19,7 +19,8 @@ and on every push to `main`, in an `archlinux:base-devel` container.
 | [ADR-0002](../docs/decisions/0002-regle-de-non-recouvrement.md): nothing in `packages/` shadows `[core]`, `[extra]` or `[multilib]` | `tools/check-shadowing.sh` |
 | The `colony-mirrorlist` SigLevel migration | `tools/test-mirrorlist-migration.sh` |
 | The signed `[colony]` chain end to end, and the installer's offline firewall repository through its own `pacman.conf`, which refuses an unsigned database or package, signed in CI with a throwaway key | `tools/test-repo.sh` |
-| The installer templates resolve in every palette of the pinned `themes.json`, and the package tree generates from the pinned archinstall | `iso/fetch-inputs.sh DIR`, then `tools/resolve-theme.py` and `tools/gen-netinstall.py` |
+| The installer and boot menu templates resolve in every palette of the pinned `themes.json`, with no placeholder left in the boot menu, and the package tree generates from the pinned archinstall | `iso/fetch-inputs.sh DIR`, then `tools/resolve-theme.py` and `tools/gen-netinstall.py` |
+| No boot menu entry presents the image as Arch Linux | `grep -rn 'Arch Linux' iso/*/syslinux iso/*/grub iso/*/efiboot` |
 | Each package the change touches builds with `makepkg -s`, passes `namcap` without errors, and its `.SRCINFO` equals `makepkg --printsrcinfo` | `makepkg --printsrcinfo > .SRCINFO` |
 
 `tools/test-repo.sh` trusts the key in `packages/colony-keyring/colony.gpg` unless

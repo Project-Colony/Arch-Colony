@@ -96,6 +96,14 @@ jobs:
 
           COLONY_SIGNING_KEY=$key COLONY_PUBKEY=$RUNNER_TEMP/ci-key.gpg tools/test-repo.sh
 
+      - name: Boot menus present the image as Arch Colony
+        run: |
+          # A modified image must not call itself Arch Linux at boot.
+          if grep -rn 'Arch Linux' iso/*/syslinux iso/*/grub iso/*/efiboot; then
+            echo "a boot entry still presents the image as Arch Linux" >&2
+            exit 1
+          fi
+
       - name: Fetch the pinned installer inputs
         run: iso/fetch-inputs.sh "$RUNNER_TEMP/inputs"
 
@@ -109,9 +117,17 @@ jobs:
           (( ${#variants[@]} ))
           for v in "${variants[@]}"; do
             work=$(mktemp -d)
-            cp -r iso/install/airootfs/etc/calamares "$work/"
+            # The two template directories iso/build.sh resolves.
+            cp -r iso/install/airootfs/etc/calamares iso/install/syslinux "$work/"
             mapfile -t templates < <(find "$work" -name '*.in')
             python tools/resolve-theme.py "$themes" "$v" "${templates[@]}" | tail -n 1
+            # resolve-theme.py checks the templates it fills. A placeholder
+            # written into a boot menu file without the .in suffix is never
+            # filled in and ships as it stands, which syslinux paints bright red.
+            if grep -rnE '@[A-Za-z0-9_.-]+@' "$work/syslinux"; then
+              echo "unresolved placeholder left in the $v build" >&2
+              exit 1
+            fi
           done
 
           # The check has to catch a placeholder the token pattern never matches.
