@@ -1,0 +1,827 @@
+# Arch Colony release workflow
+#
+# Adapted from templates/sign-and-publish-caller.yml of Project-Colony-Resources
+# for what design/releases.md calls distribution artefacts: the installation
+# image and the [colony] pacman repository, both signed with the distribution's
+# OpenPGP key, the one colony-keyring installs. That is why it does not call
+# the shared ed25519 sign-and-publish.yml: its <asset>.sig would take the names
+# pacman and `gpg --verify` read the OpenPGP signatures from. It keeps that
+# workflow's contract instead:
+#
+#   - the jobs that build never see a key;
+#   - the two jobs that sign check out nothing and build nothing;
+#   - nothing is public before everything is verified against colony.gpg.
+#
+#   release-please   opens the release PR; merging it creates the tag, whose
+#                    release is then held as a draft
+#   build-packages   builds every package newer than what [colony] serves
+#   source           the source of what this repository puts in the image
+#   sign-packages    signs those packages and the [colony] database over them,
+#                    plus the offline repository the image carries
+#   build-iso        builds the image from that signed repository
+#   sign-iso         signs the image and its checksum
+#   smoke            the repository's trust chain end to end, the image boots
+#                    to a working live system, and an offline install from it
+#                    boots with the firewall running
+#   publish          verifies everything, uploads the image, updates [colony]
+#                    and publishes the release
+#
+# The signing key is the secret ARCH_COLONY_GPG_SIGNING_SUBKEY of the `release`
+# environment: the signing subkey alone, exported with
+# `gpg --export-secret-subkeys <subkey>!`, never the certification primary,
+# which stays offline. If that export keeps a passphrase, it goes in
+# ARCH_COLONY_GPG_PASSPHRASE of the same environment. The environment should
+# only admit main and the v* tags. docs/decisions/0010-signing-in-ci.md has
+# the reasoning.
+# Until that secret exists, a release stops at sign-packages with nothing
+# signed and nothing published.
+#
+# A pull request that touches this file or the scripts it runs gets the same
+# chain as a dry run: signed with a throwaway key, published nowhere.
+#
+# Action refs are pinned to commit SHAs on purpose: this workflow can publish
+# releases, and whoever can move a floating tag can change what it runs.
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - iso/build.sh
+      - iso/fetch-inputs.sh
+      - tools/pending-packages.sh
+      - tools/test-repo.sh
+      - tools/vm-headless.py
+  # Recovery path. release-please only ever emits `release_created` once per
+  # release, so once a tag exists "Re-run all jobs" makes release-please report
+  # nothing to do and every job below skip, while the run goes green. This
+  # input finishes an existing DRAFT release whose run failed. Start it from
+  # the tag: `gh workflow run release.yml --ref v0.2.0 -f tag=v0.2.0`.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing draft release to build, sign and publish (e.g. v0.2.0). Run from that same tag."
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  # A dry run is superseded by the next push to its pull request; a release
+  # never is.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    # bash -eo pipefail, on every step.
+    shell: bash
+
+env:
+  # The primary key of colony-keyring/colony.gpg. Signatures count only when
+  # they verify against it.
+  KEY_FPR: 5CD2FCA13E691C65A354780D80C118F774E6C43F
+  # Where installed machines fetch [colony] from: colony-mirrorlist's Server.
+  REPO_URL: https://github.com/${{ github.repository }}/releases/download/repo
+  # What the image carries as its own small signed repository, so that an
+  # offline install gets the firewall too. The same three iso/offline-repo.sh
+  # takes by default: sign-packages runs nothing from the repository.
+  OFFLINE_PACKAGES: colony-firewall-control colony-firewall-control-ebpf colony-firewall-defaults
+  DRY_RUN: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Assembles a release PR from the conventional commits since the last
+  # release. Merging that PR is what creates the tag. Push only: on a recovery
+  # dispatch the tag already exists, and running release-please would open or
+  # update a release PR as a side effect of repairing an old release.
+  release-please:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      # No `release-type` input: when it is set, the action ignores both files.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      # release-please publishes the release before any image exists. Held as
+      # a draft; publish refuses anything else and publishes it last. `-R` is
+      # not optional: this job has no checkout, so `gh` has no git remote to
+      # infer the repository from.
+      - name: Hold the release as a draft
+        if: ${{ steps.release.outputs.release_created }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --draft=true
+
+  build-packages:
+    name: Build what [colony] does not serve yet
+    needs: release-please
+    # A merge that created a release, a recovery dispatch, or a dry run. NOT
+    # `always()`: that would also build after release-please FAILED.
+    if: ${{ !cancelled() && !failure() && (needs.release-please.outputs.release_created || github.event_name != 'push') }}
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - name: Install tools
+        run: |
+          pacman -Syu --noconfirm --needed git
+          # The checkout belongs to the runner's user, not to root in here.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # The tag, not the branch: a recovery dispatch must rebuild the tagged
+      # commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+          persist-credentials: false
+
+      # [colony] as an installed machine has it, served by the `repo` release
+      # and verified at its strictest. makepkg then resolves a Colony
+      # dependency that is not being rebuilt from there, the published bytes.
+      - name: Read what [colony] serves
+        run: |
+          pacman-key --init
+          pacman-key --add packages/colony-keyring/colony.gpg
+          pacman-key --lsign-key "$KEY_FPR"
+          printf '\n[colony]\nSigLevel = Required DatabaseRequired\nServer = %s\n' "$REPO_URL" >> /etc/pacman.conf
+          pacman -Sy
+          pacman -Sl colony | cut -d' ' -f2,3 | tee "$RUNNER_TEMP/published.txt"
+
+      - name: Build every package newer than the published one
+        env:
+          PACKAGER: Arch Colony <https://github.com/Project-Colony/Arch-Colony>
+        run: |
+          # Not through a process substitution, whose failure bash ignores: a
+          # refused downgrade has to fail the job.
+          list=$(tools/pending-packages.sh "$RUNNER_TEMP/published.txt")
+          mapfile -t dirs < <(printf '%s' "$list")
+          echo "To build: ${dirs[*]:-nothing}"
+          mkdir -p out /build
+          printf '%s\n' "${dirs[@]}" > out/pending.txt
+
+          # makepkg refuses to run as root, and --syncdeps installs through sudo.
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+
+          declare -A pending=() built=() dir_of=()
+          for d in "${dirs[@]}"; do pending[$d]=1; done
+          for srcinfo in packages/*/.SRCINFO; do
+            mapfile -t names < <(sed -n 's/^pkgname = //p' "$srcinfo")
+            for name in "${names[@]}"; do
+              dir_of[$name]=$(basename "$(dirname "$srcinfo")")
+            done
+          done
+
+          # A Colony dependency that is itself being rebuilt is built first and
+          # installed from here: the published one is the version this release
+          # replaces.
+          build() {
+            local dir=$1 dep need deps
+            [[ -z ${built[$dir]:-} ]] || return 0
+            built[$dir]=1
+            mapfile -t deps < <(sed -nE 's/^\t(make|check)?depends = ([^<>=]+).*/\2/p' "packages/$dir/.SRCINFO" | sort -u)
+            for dep in "${deps[@]}"; do
+              need=${dir_of[$dep]:-}
+              [[ -n $need && $need != "$dir" && -n ${pending[$need]:-} ]] || continue
+              build "$need"
+              find "/build/$need" -maxdepth 1 -name '*.pkg.tar.zst' ! -name '*-debug-*' \
+                -exec pacman -U --noconfirm {} +
+            done
+            echo "::group::$dir"
+            cp -r "packages/$dir" /build/
+            chown -R builder: "/build/$dir"
+            (cd "/build/$dir" && runuser -u builder -- makepkg --syncdeps --noconfirm)
+            echo "::endgroup::"
+          }
+          for d in "${dirs[@]}"; do build "$d"; done
+
+          # Debug packages belong in a separate repository, not in the one every
+          # user installs from.
+          find /build -mindepth 2 -maxdepth 2 -name '*.pkg.tar.zst' ! -name '*-debug-*' \
+            -exec cp -t out/ {} +
+          ls -l out
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: packages
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
+
+  # GPL corresponding source for what this repository adds to the image: the
+  # repository at the tag, every [colony] package as makepkg --allsource packs
+  # it (PKGBUILD, patches and the pinned upstream tarball), and the pinned
+  # installer inputs. The image's Arch Linux packages are named, with their
+  # versions, in the package list published next to it.
+  source:
+    name: Gather the source
+    needs: release-please
+    if: ${{ !cancelled() && !failure() && (needs.release-please.outputs.release_created || github.event_name != 'push') }}
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+    steps:
+      - name: Install tools
+        run: |
+          pacman -Syu --noconfirm --needed git
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+          persist-credentials: false
+
+      - name: Pack the source
+        run: |
+          name=arch-colony-${TAG:-dry-run}-source
+          dest=$RUNNER_TEMP/$name
+          mkdir -p "$dest/packages" out
+
+          git archive --prefix=arch-colony/ -o "$dest/arch-colony.tar" HEAD
+
+          useradd -m builder
+          mkdir /build
+          for dir in packages/*/; do
+            dir=${dir%/}
+            cp -r "$dir" /build/
+            chown -R builder: "/build/${dir#packages/}"
+            (cd "/build/${dir#packages/}" && runuser -u builder -- makepkg --allsource)
+            mv /build/"${dir#packages/}"/*.src.tar.gz "$dest/packages/"
+          done
+
+          iso/fetch-inputs.sh "$RUNNER_TEMP/inputs"
+          git -C "$RUNNER_TEMP/inputs/archinstall" archive --prefix=archinstall/ \
+            -o "$dest/archinstall.tar" HEAD
+          cp "$RUNNER_TEMP/inputs/themes.json" "$dest/"
+
+          tar -C "$RUNNER_TEMP" -cf "out/$name.tar" "$name"
+          tar -tvf "out/$name.tar"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: source
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
+
+  # The first of the two jobs that hold the key. No checkout and no build: it
+  # downloads the packages, the published database and the published packages,
+  # signs, and uploads the result. archlinux:base for repo-add, nothing else
+  # installed.
+  sign-packages:
+    name: Sign the packages and the databases
+    needs: [release-please, build-packages]
+    if: ${{ !cancelled() && needs.build-packages.result == 'success' }}
+    runs-on: ubuntu-latest
+    container: archlinux:base
+    # The secret lives in this environment. A dry run gets none.
+    environment: ${{ github.event_name != 'pull_request' && 'release' || '' }}
+    timeout-minutes: 30
+    permissions: {}
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: packages
+          path: new
+
+      - name: Sign
+        env:
+          SUBKEY: ${{ secrets.ARCH_COLONY_GPG_SIGNING_SUBKEY }}
+          PASSPHRASE: ${{ secrets.ARCH_COLONY_GPG_PASSPHRASE }}
+          KEY_URL: https://raw.githubusercontent.com/${{ github.repository }}/${{ github.event.pull_request.head.sha || github.sha }}/packages/colony-keyring/colony.gpg
+        run: |
+          fail() { echo "::error::$*"; exit 1; }
+          export GNUPGHOME=$RUNNER_TEMP/gnupg
+          install -d -m 700 "$GNUPGHOME"
+          trap 'gpgconf --kill all; rm -rf "$GNUPGHOME"' EXIT
+
+          # The key users trust, for what this job downloads.
+          curl -fsSL --proto '=https' -o "$RUNNER_TEMP/colony.gpg" "$KEY_URL"
+          gpg --batch --quiet --import "$RUNNER_TEMP/colony.gpg"
+          verify() {
+            gpg --batch --status-fd 1 --verify "$1.sig" "$1" 2>/dev/null |
+              grep -q "^\[GNUPG:\] VALIDSIG .* $KEY_FPR\$" ||
+              fail "$1 is not signed by $KEY_FPR"
+          }
+
+          mkdir -p signed
+          if [[ $DRY_RUN == true ]]; then
+            gpg --batch --quiet --passphrase '' --quick-gen-key 'Arch Colony dry run <dry-run@invalid>' ed25519 sign 1d
+            signer=$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')
+            gpg --batch --export "$signer" > signed/dry-run-key.gpg
+          else
+            [[ -n $SUBKEY ]] || fail "The ARCH_COLONY_GPG_SIGNING_SUBKEY secret of the 'release' environment is not set, so nothing can be signed. Nothing was signed or published${TAG:+ and $TAG stays a draft}. Add the signing subkey (gpg --export-secret-subkeys --armor <subkey>!), then finish this release with: gh workflow run release.yml -R $GITHUB_REPOSITORY --ref $TAG -f tag=$TAG"
+            if [[ -n $PASSPHRASE ]]; then
+              printf '%s\n' "$PASSPHRASE" > "$GNUPGHOME/passphrase"
+              printf 'batch\npinentry-mode loopback\npassphrase-file %s\n' "$GNUPGHOME/passphrase" > "$GNUPGHOME/gpg.conf"
+            fi
+            gpg --batch --quiet --import <<<"$SUBKEY"
+            listing=$(gpg --batch --with-colons --list-secret-keys)
+            [[ $(grep -c '^sec:' <<<"$listing") == 1 ]] || fail "the secret must hold exactly one key"
+            primary=$(awk -F: '$1 == "sec" { getline; print $10 }' <<<"$listing")
+            [[ $primary == "$KEY_FPR" ]] || fail "the secret is a key of $primary, not of $KEY_FPR"
+            # '#': the primary's secret part is absent, as it must be. With it,
+            # anyone reading this secret could certify keys in our name.
+            [[ $(awk -F: '$1 == "sec" { print $15 }' <<<"$listing") == "#" ]] \
+              || fail "the secret holds the certification primary key. Export the signing subkey only: gpg --export-secret-subkeys --armor <subkey>!"
+            signer=$KEY_FPR
+          fi
+          # Fails here, legibly, on an expired subkey or a wrong passphrase.
+          echo probe > "$GNUPGHOME/probe"
+          if ! gpg --batch --yes --local-user "$signer" --detach-sign "$GNUPGHOME/probe" ||
+              ! gpg --batch --verify "$GNUPGHOME/probe.sig" "$GNUPGHOME/probe" 2>/dev/null; then
+            fail "the key cannot sign: expired, revoked, or the passphrase is wrong"
+          fi
+          sign() { gpg --batch --yes --no-armor --local-user "$signer" --detach-sign "$1"; }
+          # Signs a database repo-add wrote, and copies it, with its signature,
+          # to the short names pacman fetches: release assets cannot be links.
+          sign_db() {
+            local db
+            for db in "$1.db" "$1.files"; do
+              sign "$db.tar.zst"
+              rm -f "$db" "$db.sig"
+              cp "$db.tar.zst" "$db"
+              cp "$db.tar.zst.sig" "$db.sig"
+            done
+          }
+
+          cd signed
+
+          # The database installed machines sync today, checked before
+          # anything is added to it.
+          for db in colony.db.tar.zst colony.files.tar.zst; do
+            curl -fsSL --proto '=https' -o "$db" "$REPO_URL/$db"
+            curl -fsSL --proto '=https' -o "$db.sig" "$REPO_URL/$db.sig"
+            verify "$db"
+          done
+          # publish refuses to replace a database that moved since.
+          sha256sum colony.db.tar.zst > base.sha256
+
+          shopt -s nullglob
+          new=(../new/*.pkg.tar.zst)
+          shopt -u nullglob
+          : > new.txt
+          for f in "${new[@]}"; do
+            mv "$f" .
+            sign "${f##*/}"
+            echo "${f##*/}" >> new.txt
+          done
+          if [[ -s new.txt ]]; then
+            mapfile -t added < new.txt
+            # Signed below by gpg itself: repo-add --sign only warns when
+            # signing fails, and carries on.
+            repo-add colony.db.tar.zst "${added[@]}"
+            rm -f ./*.old ./*.old.sig
+          fi
+          sign_db colony
+
+          # Every package the database lists, so that what goes to the image
+          # build and the smoke test is the complete repository. Those not
+          # rebuilt here come from the published repository and must verify;
+          # in a dry run they are re-signed with the throwaway key.
+          declare -A file_of=()
+          while read -r name file; do
+            file_of[$name]=$file
+            [[ -f $file ]] && continue
+            curl -fsSL --proto '=https' -o "$file" "$REPO_URL/$file"
+            curl -fsSL --proto '=https' -o "$file.sig" "$REPO_URL/$file.sig"
+            verify "$file"
+            if [[ $DRY_RUN == true ]]; then sign "$file"; fi
+          done < <(bsdtar -xOf colony.db.tar.zst '*/desc' |
+            awk '/^%FILENAME%$/ { getline f } /^%NAME%$/ { getline n; print n, f }')
+          (( ${#file_of[@]} )) || fail "the database lists no package"
+
+          mkdir offline
+          read -ra offline <<<"$OFFLINE_PACKAGES"
+          for name in "${offline[@]}"; do
+            [[ -n ${file_of[$name]:-} ]] || fail "$name is not in [colony]"
+            cp "${file_of[$name]}" "${file_of[$name]}.sig" offline/
+          done
+          (cd offline && repo-add --new colony-offline.db.tar.zst ./*.pkg.tar.zst && sign_db colony-offline)
+
+          ls -l . offline
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: signed-repo
+          path: signed/
+          if-no-files-found: error
+          retention-days: 1
+
+  build-iso:
+    name: Build the image
+    needs: [release-please, sign-packages]
+    if: ${{ !cancelled() && needs.sign-packages.result == 'success' }}
+    runs-on: ubuntu-latest
+    # mkarchiso mounts, chroots and makes device nodes.
+    container:
+      image: archlinux:base-devel
+      options: --privileged
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+    steps:
+      - name: Install tools
+        run: |
+          pacman -Syu --noconfirm --needed archiso git github-cli python
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: signed-repo
+          path: repo/out
+
+      - name: Trust the key [colony] is signed with
+        run: |
+          pacman-key --init
+          pacman-key --add packages/colony-keyring/colony.gpg
+          pacman-key --lsign-key "$KEY_FPR"
+          if [[ $DRY_RUN == true ]]; then
+            fpr=$(gpg --show-keys --with-colons repo/out/dry-run-key.gpg | awk -F: '$1 == "fpr" { print $10; exit }')
+            pacman-key --add repo/out/dry-run-key.gpg
+            pacman-key --lsign-key "$fpr"
+            # The installer populates the target's keyring from the image's
+            # keyrings before it installs the firewall from the medium, and
+            # that offline repository is signed with this key too. Only a dry
+            # run image carries it, and it is never published.
+            keyrings=iso/install/airootfs/usr/share/pacman/keyrings
+            install -Dm644 repo/out/dry-run-key.gpg "$keyrings/colony-dry-run.gpg"
+            echo "$fpr:4:" > "$keyrings/colony-dry-run-trusted"
+          fi
+
+      # No COLONY_SIGNING_KEY: iso/build.sh builds from the signed database
+      # in repo/out and leaves the image for sign-iso.
+      - name: Build
+        run: iso/build.sh install
+
+      - name: Check the image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          isos=(iso/out/*.iso)
+          (( ${#isos[@]} == 1 )) || { echo "::error::expected one image, found ${#isos[@]}"; exit 1; }
+          iso=${isos[0]}
+          name=${iso##*/}
+          [[ $name =~ ^archcolony-[0-9]{4}\.[0-9]{2}\.[0-9]{2}-x86_64\.iso$ ]] \
+            || { echo "::error::$name is not archcolony-YYYY.MM.DD-x86_64.iso"; exit 1; }
+
+          # A dated name is something people cite and write checksums down
+          # for. Another image under the same name would change what they
+          # refer to.
+          if gh api --paginate "repos/$GITHUB_REPOSITORY/releases" \
+              --jq '.[] | select(.draft | not) | .assets[].name' | grep -qxF "$name"; then
+            echo "::error::$name is already published. Images are named by the day they are built, so release again tomorrow, or rebuild with: gh workflow run release.yml -R $GITHUB_REPOSITORY --ref $TAG -f tag=$TAG"
+            exit 1
+          fi
+
+          # GitHub refuses a release asset over 2 GiB; the margin keeps a
+          # growing image from failing at upload, after everything else.
+          size=$(stat -c %s "$iso")
+          limit=$(( 19 * 1024 * 1024 * 1024 / 10 ))
+          echo "$name: $size bytes, $(( size * 100 / limit ))% of the 1.9 GiB limit"
+          (( size <= limit )) || { echo "::error::$name is over 1.9 GiB"; exit 1; }
+
+      # The image as built, unsigned, with its checksum and package list.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: iso
+          path: iso/out/
+          if-no-files-found: error
+          # Already compressed.
+          compression-level: 0
+          retention-days: 1
+
+  # The second job that holds the key, as isolated as the first.
+  sign-iso:
+    name: Sign the image
+    needs: [release-please, build-iso]
+    if: ${{ !cancelled() && needs.build-iso.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name != 'pull_request' && 'release' || '' }}
+    timeout-minutes: 30
+    permissions: {}
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: iso
+          path: iso
+
+      # The same key handling as sign-packages; it is not shared because
+      # neither job may run code from the repository.
+      - name: Sign
+        env:
+          SUBKEY: ${{ secrets.ARCH_COLONY_GPG_SIGNING_SUBKEY }}
+          PASSPHRASE: ${{ secrets.ARCH_COLONY_GPG_PASSPHRASE }}
+        run: |
+          fail() { echo "::error::$*"; exit 1; }
+          export GNUPGHOME=$RUNNER_TEMP/gnupg
+          install -d -m 700 "$GNUPGHOME"
+          trap 'gpgconf --kill all; rm -rf "$GNUPGHOME"' EXIT
+          mkdir -p signatures
+
+          if [[ $DRY_RUN == true ]]; then
+            gpg --batch --quiet --passphrase '' --quick-gen-key 'Arch Colony dry run <dry-run@invalid>' ed25519 sign 1d
+            signer=$(gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" { print $10; exit }')
+            gpg --batch --export "$signer" > signatures/dry-run-key.gpg
+          else
+            [[ -n $SUBKEY ]] || fail "The ARCH_COLONY_GPG_SIGNING_SUBKEY secret of the 'release' environment is not set. Nothing was published${TAG:+ and $TAG stays a draft}."
+            if [[ -n $PASSPHRASE ]]; then
+              printf '%s\n' "$PASSPHRASE" > "$GNUPGHOME/passphrase"
+              printf 'batch\npinentry-mode loopback\npassphrase-file %s\n' "$GNUPGHOME/passphrase" > "$GNUPGHOME/gpg.conf"
+            fi
+            gpg --batch --quiet --import <<<"$SUBKEY"
+            listing=$(gpg --batch --with-colons --list-secret-keys)
+            [[ $(grep -c '^sec:' <<<"$listing") == 1 ]] || fail "the secret must hold exactly one key"
+            primary=$(awk -F: '$1 == "sec" { getline; print $10 }' <<<"$listing")
+            [[ $primary == "$KEY_FPR" ]] || fail "the secret is a key of $primary, not of $KEY_FPR"
+            [[ $(awk -F: '$1 == "sec" { print $15 }' <<<"$listing") == "#" ]] \
+              || fail "the secret holds the certification primary key. Export the signing subkey only: gpg --export-secret-subkeys --armor <subkey>!"
+            signer=$KEY_FPR
+          fi
+
+          cd iso
+          shopt -s nullglob
+          isos=(./*.iso)
+          (( ${#isos[@]} == 1 )) || fail "expected one image, found ${#isos[@]}"
+          sha256sum -c "${isos[0]}.sha256"
+          for f in "${isos[0]}" "${isos[0]}.sha256"; do
+            gpg --batch --yes --no-armor --local-user "$signer" --detach-sign "$f"
+            gpg --batch --verify "$f.sig" "$f"
+            mv "$f.sig" ../signatures/
+          done
+          ls -l ../signatures
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: iso-signatures
+          path: signatures/
+          if-no-files-found: error
+          retention-days: 1
+
+  smoke:
+    name: Smoke-test the repository and the image
+    needs: [release-please, sign-packages, build-iso, sign-iso]
+    if: ${{ !cancelled() && needs.sign-iso.result == 'success' }}
+    runs-on: ubuntu-latest
+    # KVM, for a boot that takes a minute rather than half an hour. Root in
+    # the container opens /dev/kvm without the udev rule a runner user needs.
+    container:
+      image: archlinux:base-devel
+      options: --device /dev/kvm
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    steps:
+      - name: Install tools
+        run: |
+          # virtio-vga: the installer's screen, as tools/run-iso.sh shows it.
+          # It needs the virtio-gpu module too, which its package does not pull
+          # in: without it QEMU crashes at start, and -daemonize hides that as a
+          # bare exit status 1.
+          pacman -Syu --noconfirm --needed git python qemu-base qemu-hw-display-virtio-gpu \
+            qemu-hw-display-virtio-vga edk2-ovmf libarchive
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: signed-repo
+          path: repo/out
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: iso*
+          path: iso/out
+          merge-multiple: true
+
+      - name: The key the artefacts must verify against
+        run: |
+          repo_key=packages/colony-keyring/colony.gpg
+          iso_key=$repo_key
+          if [[ $DRY_RUN == true ]]; then
+            repo_key=repo/out/dry-run-key.gpg
+            iso_key=iso/out/dry-run-key.gpg
+          fi
+          fpr() { gpg --show-keys --with-colons "$1" | awk -F: '$1 == "fpr" { print $10; exit }'; }
+          {
+            echo "REPO_KEY=$repo_key"
+            echo "REPO_KEY_FPR=$(fpr "$repo_key")"
+            echo "ISO_KEY=$iso_key"
+          } >> "$GITHUB_ENV"
+
+      - name: The image verifies
+        run: |
+          export GNUPGHOME=$RUNNER_TEMP/gnupg
+          install -d -m 700 "$GNUPGHOME"
+          gpg --batch --quiet --import "$ISO_KEY"
+          cd iso/out
+          for f in ./*.iso ./*.iso.sha256; do gpg --batch --verify "$f.sig" "$f"; done
+          sha256sum -c ./*.iso.sha256
+
+      - name: The [colony] trust chain, on the database about to be published
+        env:
+          COLONY_PREBUILT_DB: "1"
+        run: COLONY_SIGNING_KEY=$REPO_KEY_FPR COLONY_PUBKEY=$REPO_KEY tools/test-repo.sh
+
+      - name: The image boots to a working live system
+        run: tools/vm-headless.py smoke iso/out/*.iso
+
+      # Offline, so that the firewall can only come from the image: the
+      # installer's own pages and jobs onto an empty disk, then the installed
+      # system's first boot.
+      - name: An offline install boots with the firewall running
+        run: |
+          tools/vm-headless.py start install --offline
+          tools/vm-headless.py autoinstall
+          tools/vm-headless.py installed --offline
+          tools/vm-headless.py check-firewall
+          tools/vm-headless.py stop
+
+      - name: Keep the installer's screen and log
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: install-diagnostics
+          path: |
+            ~/.cache/arch-colony/*.ppm
+            ~/.cache/arch-colony/*.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  publish:
+    name: Publish ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+    needs: [release-please, source, sign-packages, build-iso, sign-iso, smoke]
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && needs.smoke.result == 'success' && needs.source.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.release-please.outputs.tag_name || inputs.tag }}
+    steps:
+      # No checkout: this job writes releases, and runs nothing from the
+      # repository to do it.
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: signed-repo
+          path: repo
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: iso*
+          path: dist
+          merge-multiple: true
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: source
+          path: dist
+
+      - name: Verify everything against colony.gpg at the tag
+        run: |
+          fail() { echo "::error::$*"; exit 1; }
+          [ -n "$TAG" ] || fail "no tag"
+          gh api -H 'Accept: application/vnd.github.raw' \
+            "repos/$GITHUB_REPOSITORY/contents/packages/colony-keyring/colony.gpg?ref=$TAG" > dist/colony.gpg
+          export GNUPGHOME=$RUNNER_TEMP/gnupg
+          install -d -m 700 "$GNUPGHOME"
+          gpg --batch --quiet --import dist/colony.gpg
+          verify() {
+            gpg --batch --status-fd 1 --verify "$1.sig" "$1" 2>/dev/null |
+              grep -q "^\[GNUPG:\] VALIDSIG .* $KEY_FPR\$" ||
+              fail "$1 is not signed by $KEY_FPR"
+          }
+          for f in dist/*.iso dist/*.iso.sha256 repo/*.pkg.tar.zst \
+              repo/colony.db repo/colony.db.tar.zst repo/colony.files repo/colony.files.tar.zst; do
+            verify "$f"
+          done
+          (cd dist && sha256sum -c ./*.iso.sha256)
+          echo "every signature verifies against $KEY_FPR"
+
+      - name: Upload the image to the draft
+        run: |
+          state=$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft) \
+            || { echo "::error::no release found for $TAG"; exit 1; }
+          [ "$state" = "true" ] \
+            || { echo "::error::$TAG is already published. Refusing to replace its assets."; exit 1; }
+
+          files=(dist/*.iso dist/*.iso.sig dist/*.iso.sha256 dist/*.iso.sha256.sig
+            dist/*.iso.pkglist.txt dist/*-source.tar dist/colony.gpg)
+          gh release upload "$TAG" -R "$GITHUB_REPOSITORY" --clobber "${files[@]}"
+
+          # A local file proves nothing about what users will download.
+          mkdir published
+          patterns=()
+          for f in "${files[@]}"; do patterns+=(--pattern "${f#dist/}"); done
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" --dir published "${patterns[@]}"
+          for f in "${files[@]}"; do
+            cmp -s "$f" "published/${f#dist/}" || { echo "::error::${f#dist/} on the release differs from what was verified"; exit 1; }
+          done
+          echo "image assets verified as uploaded"
+
+      # Packages and their signatures first, the databases that point at them
+      # last: a machine syncing in between sees the previous database, whose
+      # files are all still there. Then what the new database no longer lists
+      # goes, so that a superseded signed package does not stay downloadable.
+      - name: Update [colony]
+        run: |
+          cd repo
+          mapfile -t added < new.txt
+          if (( ! ${#added[@]} )); then
+            echo "no new package; [colony] stays as it is"
+            exit 0
+          fi
+          # Built on the database published when this run signed; if another
+          # release replaced it since, this one would drop that one's packages.
+          curl -fsSL --proto '=https' -o current.db "$REPO_URL/colony.db.tar.zst"
+          [[ $(sha256sum < current.db | cut -d' ' -f1) == "$(cut -d' ' -f1 base.sha256)" ]] \
+            || { echo "::error::[colony] changed while this release was being built. Re-run it: gh workflow run release.yml -R $GITHUB_REPOSITORY --ref $TAG -f tag=$TAG"; exit 1; }
+
+          pkgs=()
+          for f in "${added[@]}"; do pkgs+=("$f" "$f.sig"); done
+          gh release upload repo -R "$GITHUB_REPOSITORY" --clobber "${pkgs[@]}" ../dist/colony.gpg
+          dbs=(colony.db colony.db.sig colony.db.tar.zst colony.db.tar.zst.sig
+            colony.files colony.files.sig colony.files.tar.zst colony.files.tar.zst.sig)
+          gh release upload repo -R "$GITHUB_REPOSITORY" --clobber "${dbs[@]}"
+
+          keep=("${dbs[@]}" colony.gpg)
+          while read -r file; do keep+=("$file" "$file.sig"); done < <(
+            tar --zstd -xOf colony.db.tar.zst --wildcards '*/desc' | awk '/^%FILENAME%$/ { getline; print }')
+          gh release view repo -R "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' > assets.txt
+          while read -r asset; do
+            printf '%s\n' "${keep[@]}" | grep -qxF -- "$asset" && continue
+            echo "removing superseded $asset"
+            gh release delete-asset repo "$asset" -R "$GITHUB_REPOSITORY" --yes
+          done < assets.txt
+
+      - name: Add verification and source notes
+        run: |
+          isos=(dist/*.iso) srcs=(dist/*-source.tar)
+          iso=${isos[0]#dist/} src=${srcs[0]#dist/}
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json body --jq .body > notes.md
+          # Idempotent: a re-run must not append it twice.
+          if ! grep -qF '## Verify the image' notes.md; then
+            cat >> notes.md <<EOF
+
+          ## Verify the image
+
+          Check the key first: \`gpg --show-keys colony.gpg\` must print the fingerprint
+          \`5CD2 FCA1 3E69 1C65 A354  780D 80C1 18F7 74E6 C43F\`. Then:
+
+              gpg --import colony.gpg
+              gpg --verify $iso.sig $iso
+              gpg --verify $iso.sha256.sig $iso.sha256
+              sha256sum -c $iso.sha256
+
+          ## Source code
+
+          \`$src\` holds this repository at $TAG, the source of every [colony] package
+          as \`makepkg --allsource\` packs it, and the pinned installer inputs.
+          \`$iso.pkglist.txt\` names every package in the image with its exact
+          version; the Arch Linux ones are built from the sources Arch Linux publishes
+          at https://gitlab.archlinux.org/archlinux/packaging/packages.
+
+          [Code signing policy](https://github.com/$GITHUB_REPOSITORY#code-signing-policy)
+          EOF
+            gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --notes-file notes.md
+          fi
+
+      # Only now does /releases/latest move.
+      - name: Publish the release
+        run: gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --draft=false
