@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Project-Colony/Arch-Colony/compare/v0.1.2...v0.1.3) (2026-10-28)
+
+
+### Fixes
+
+* install Colony Firewall Control 0.9.1 from its new source layout ([#13](https://github.com/Project-Colony/Arch-Colony/issues/13)) ([adb4228](https://github.com/Project-Colony/Arch-Colony/commit/adb42287578ad1474c95dffbe87d6595415dd885))
+
 ## [0.1.2](https://github.com/Project-Colony/Arch-Colony/compare/v0.1.1...v0.1.2) (2026-10-28)
 
 
