@@ -55,7 +55,7 @@ it from a terminal.
 
 Inbound filtering stays off. Turning it on can strand a machine you reach over
 the network: `systemctl enable --now colony-firewall-nft-inbound`, and read
-/usr/share/doc/colony-firewall-control/HARDENING.md first.
+/usr/share/doc/colony-firewall-control/hardening.md first.
 
 To start it now instead of at the next boot:
   systemctl start colony-firewall-nft colony-firewalld colony-firewall-seed
