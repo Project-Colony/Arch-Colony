@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/Project-Colony/Arch-Colony/compare/v0.1.1...v0.1.2) (2026-10-28)
+
+
+### Fixes
+
+* ship Colony Firewall Control 0.9.1 ([#11](https://github.com/Project-Colony/Arch-Colony/issues/11)) ([345aac4](https://github.com/Project-Colony/Arch-Colony/commit/345aac413a27ca5a508933583b572431d529a515))
+
 ## [0.1.1](https://github.com/Project-Colony/Arch-Colony/compare/v0.1.0...v0.1.1) (2026-10-23)
 
 
